@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { DAY_META, formatBodyParts, getTodayDayKey, hasWorkoutBodyParts, isRestDay, type RoutineMap } from "@/lib/app-config"
 import { CheckCircle2Icon, CircleIcon } from "./icons"
+import MachineVisual from "./machine-visual"
 
 type SetState = "idle" | "done"
 
 type ExerciseRecord = {
   id: string
+  machineId: string
   name: string
   targetWeight: number
   targetReps: number
@@ -29,6 +31,7 @@ function createExerciseRecords(routines: RoutineMap) {
 
     return {
       id: exercise.id,
+      machineId: exercise.machineId,
       name: exercise.machineName,
       targetWeight: Number(exercise.weight) || 0,
       targetReps: Number(exercise.reps) || 0,
@@ -110,11 +113,11 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
     return (
       <div className="flex h-full flex-col overflow-y-auto">
         <div className="px-4 pt-5 pb-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[22px] font-bold tracking-tight text-[#191F28]">{dateStr}</span>
+          <p className="text-[12px] font-semibold text-[#8B95A1]">{todayLabel}</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-[26px] font-bold tracking-tight text-[#191F28]">{dateStr}</span>
             <span className="text-[15px] text-[#8B95A1]">{dayStr}</span>
           </div>
-          <p className="mt-0.5 text-[13px] text-[#8B95A1]">{todayLabel}</p>
         </div>
 
         <div className="px-4 pb-6">
@@ -135,62 +138,56 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 pt-5 pb-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[22px] font-bold tracking-tight text-[#191F28]">{dateStr}</span>
+          <p className="text-[12px] font-semibold text-[#8B95A1]">{todayLabel}</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-[26px] font-bold tracking-tight text-[#191F28]">{dateStr}</span>
             <span className="text-[15px] text-[#8B95A1]">{dayStr}</span>
           </div>
-          <p className="mt-0.5 text-[13px] text-[#8B95A1]">
-            {todayLabel} · {formatBodyParts(todayRoutine.bodyParts)}
-          </p>
+          <p className="mt-1.5 text-[13px] text-[#6B7684]">{formatBodyParts(todayRoutine.bodyParts)}</p>
         </div>
 
         <div className="px-4 mb-4">
-          <div className="overflow-hidden rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] shadow-[0_16px_28px_-24px_rgba(15,23,42,0.22)]">
-            <div className="bg-[#191F28] px-4 py-4 text-white">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-medium text-white/70">오늘 달성률</p>
-                  <p className="mt-2 text-[30px] font-bold leading-none">{pct}%</p>
-                </div>
-                <div className="rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-semibold">
-                  {doneSets}/{totalSets}세트
-                </div>
+          <div className="rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[12px] font-semibold text-[#8B95A1]">오늘 진행률</p>
+                <p className="mt-1 text-[32px] font-bold leading-none text-[#191F28]">{pct}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[12px] font-semibold text-[#8B95A1]">완료 세트</p>
+                <p className="mt-1 text-[18px] font-bold text-[#191F28]">
+                  {doneSets}/{totalSets}
+                </p>
               </div>
             </div>
 
-            <div className="px-4 py-4">
-              <div className="mb-3 grid grid-cols-2 gap-2">
-                <div className="rounded-2xl bg-[#F8FAFC] px-3 py-3">
-                  <p className="text-[11px] font-medium text-[#8B95A1]">남은 세트</p>
-                  <p className="mt-1 text-[18px] font-bold text-[#191F28]">{remaining}개</p>
-                </div>
-                <div className="rounded-2xl bg-[#F8FAFC] px-3 py-3">
-                  <p className="text-[11px] font-medium text-[#8B95A1]">기록 운동</p>
-                  <p className="mt-1 text-[18px] font-bold text-[#191F28]">{exercises.length}개</p>
-                </div>
-              </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5E8EB]">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  backgroundColor: pct >= 100 ? "#2CB52C" : "#3182F6",
+                  width: `${pct}%`,
+                }}
+              />
+            </div>
 
-              <div className="h-2 overflow-hidden rounded-full bg-[#E5E8EB]">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    backgroundColor: pct >= 100 ? "#2CB52C" : "#3182F6",
-                    width: `${pct}%`,
-                  }}
-                />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-[18px] bg-[#F7F8FA] px-3 py-3">
+                <p className="text-[11px] font-semibold text-[#8B95A1]">남은 세트</p>
+                <p className="mt-1 text-[18px] font-bold text-[#191F28]">{remaining}개</p>
               </div>
-              <div className="mt-1.5 flex justify-between">
-                <span className="text-[11px] text-[#8B95A1]">{doneSets}세트 완료</span>
-                <span className="text-[11px] text-[#8B95A1]">목표 {totalSets}세트</span>
+              <div className="rounded-[18px] bg-[#F7F8FA] px-3 py-3">
+                <p className="text-[11px] font-semibold text-[#8B95A1]">운동 수</p>
+                <p className="mt-1 text-[18px] font-bold text-[#191F28]">{exercises.length}개</p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="px-4 mb-2">
-          <div className="rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-3">
+          <div className="rounded-[20px] bg-[#FFFFFF] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
             <span className="text-[13px] font-semibold text-[#4E5968]">오늘 운동</span>
-            <p className="mt-1 text-[12px] text-[#8B95A1]">세트 번호를 누르면 해당 번호까지 완료되고, 세부 기록에서 실제 횟수를 남길 수 있습니다</p>
+            <p className="mt-1 text-[12px] text-[#8B95A1]">세트 번호를 누르면 해당 세트까지 한 번에 완료됩니다</p>
           </div>
         </div>
 
@@ -218,6 +215,7 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
                     ) : (
                       <CircleIcon className="shrink-0 text-[#E5E8EB]" size={18} />
                     )}
+                    <MachineVisual machineId={exercise.machineId} size={36} />
                     <div className="min-w-0 text-left">
                       <p className="truncate text-[14px] font-semibold text-[#191F28]">{exercise.name}</p>
                       <p className="text-[12px] text-[#8B95A1]">
@@ -275,10 +273,10 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
         </div>
       </div>
 
-      <div className="border-t border-[#E5E8EB] bg-[#FFFFFF] px-4 py-3">
+      <div className="border-t border-[#EEF1F4] bg-[rgba(255,255,255,0.96)] px-4 py-3 backdrop-blur">
         <button
           className={`w-full rounded-2xl py-4 text-[15px] font-semibold text-white transition-all active:opacity-90 ${
-            saved ? "bg-[#2CB52C]" : "bg-[#3182F6]"
+            saved ? "bg-[#2CB52C]" : "bg-[#191F28]"
           }`}
           onClick={handleSave}
           type="button"

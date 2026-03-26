@@ -11,6 +11,7 @@ import {
   formatBodyParts,
   getDayMeta,
   getGoalOption,
+  getMachineVisualLabel,
   getPreferredMachineCategories,
   getRoutineDayCardPreview,
   getRoutineFocusHint,
@@ -28,6 +29,7 @@ import {
   type UserProfile,
 } from "@/lib/app-config"
 import { SearchIcon, Trash2Icon, XIcon } from "./icons"
+import MachineVisual from "./machine-visual"
 
 type RoutineStage = "focus" | "exercise" | "details"
 type ExerciseField = "weight" | "reps" | "sets"
@@ -532,11 +534,19 @@ export default function RoutineEditorScreen({
                             }
                             type="button"
                           >
-                            <div>
-                              <p className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
-                                {machine.name}
-                              </p>
-                              <p className="mt-1 text-[11px] text-[#8B95A1]">{machine.muscle}</p>
+                            <div className="flex min-w-0 items-center gap-3">
+                              <MachineVisual category={machine.category} machineId={machine.id} selected={isSelected} size={40} />
+                              <div className="min-w-0">
+                                <p className={`truncate text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
+                                  {machine.name}
+                                </p>
+                                <div className="mt-1 flex items-center gap-1.5">
+                                  <span className="rounded-full bg-[#F2F4F6] px-1.5 py-0.5 text-[10px] font-semibold text-[#6B7684]">
+                                    {getMachineVisualLabel(machine.id, machine.category)}
+                                  </span>
+                                  <p className="truncate text-[11px] text-[#8B95A1]">{machine.muscle}</p>
+                                </div>
+                              </div>
                             </div>
                             <span
                               className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
@@ -577,11 +587,14 @@ export default function RoutineEditorScreen({
                         key={exercise.id}
                         className="flex items-center justify-between rounded-xl border border-[#E5E8EB] bg-[#FFFFFF] px-3 py-3"
                       >
-                        <div>
-                          <p className="font-semibold text-[#191F28]">{exercise.machineName}</p>
-                          <p className="mt-1 text-[11px] text-[#8B95A1]">
-                            {exercise.weight || "-"}kg · {exercise.reps || "-"}회 · {exercise.sets || "-"}세트
-                          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <MachineVisual machineId={exercise.machineId} size={40} />
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-[#191F28]">{exercise.machineName}</p>
+                            <p className="mt-1 text-[11px] text-[#8B95A1]">
+                              {exercise.weight || "-"}kg · {exercise.reps || "-"}회 · {exercise.sets || "-"}세트
+                            </p>
+                          </div>
                         </div>
                         <button
                           className="rounded-full p-1 text-[#8B95A1]"
@@ -615,16 +628,19 @@ export default function RoutineEditorScreen({
                   </div>
 
                   <div className="mt-4 flex flex-col gap-3">
-                    {selectedDayRoutine.exercises.map((exercise) => (
-                      <div key={exercise.id} className="rounded-2xl border border-[#E5E8EB] bg-[#F8FAFC] p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[13px] font-semibold text-[#191F28]">{exercise.machineName}</p>
+                  {selectedDayRoutine.exercises.map((exercise) => (
+                    <div key={exercise.id} className="rounded-2xl border border-[#E5E8EB] bg-[#F8FAFC] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <MachineVisual machineId={exercise.machineId} size={40} />
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-semibold text-[#191F28]">{exercise.machineName}</p>
                             <p className="mt-1 text-[11px] text-[#8B95A1]">무게, 횟수, 세트를 모두 입력해 주세요</p>
                           </div>
-                          <button
-                            className="rounded-full p-1 text-[#8B95A1]"
-                            onClick={() => removeExercise(selectedDay, exercise.id)}
+                        </div>
+                        <button
+                          className="rounded-full p-1 text-[#8B95A1]"
+                          onClick={() => removeExercise(selectedDay, exercise.id)}
                             type="button"
                           >
                             <Trash2Icon size={16} />

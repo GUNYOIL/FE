@@ -46,6 +46,27 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
     setShowSignupErrors(false)
   }, [authMode])
 
+  const hideSignupErrorsOnEdit = () => {
+    if (authMode === "signup" && showSignupErrors) {
+      setShowSignupErrors(false)
+    }
+  }
+
+  const handleEmailChange = (value: string) => {
+    hideSignupErrorsOnEdit()
+    setEmail(value)
+  }
+
+  const handlePasswordChange = (value: string) => {
+    hideSignupErrorsOnEdit()
+    setPassword(value)
+  }
+
+  const handleConfirmPasswordChange = (value: string) => {
+    hideSignupErrorsOnEdit()
+    setConfirmPassword(value)
+  }
+
   const emailError =
     (authMode === "signup" ? showSignupErrors : email.trim().length > 0) && !isValidEmail(email)
       ? "이메일 형식으로 입력해 주세요."
@@ -130,9 +151,9 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
       confirmPasswordError={confirmPasswordError}
       email={email}
       emailError={emailError}
-      onConfirmPasswordChange={setConfirmPassword}
-      onEmailChange={setEmail}
-      onPasswordChange={setPassword}
+      onConfirmPasswordChange={handleConfirmPasswordChange}
+      onEmailChange={handleEmailChange}
+      onPasswordChange={handlePasswordChange}
       onSubmit={handleSubmit}
       onToggleMode={() => router.push(authMode === "signup" ? "/login" : "/signup")}
       password={password}

@@ -144,58 +144,45 @@ export default function ProteinScreen({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="px-4 pt-5 pb-4">
-        <h2 className="text-[20px] font-bold tracking-tight text-[#191F28]">단백질</h2>
-        <p className="mt-0.5 text-[13px] text-[#8B95A1]">
+        <p className="text-[12px] font-semibold text-[#8B95A1]">섭취 관리</p>
+        <h2 className="mt-1 text-[24px] font-bold tracking-tight text-[#191F28]">단백질</h2>
+        <p className="mt-1.5 text-[13px] text-[#6B7684]">
           {goalOption.label} 기준 {profile.weight}kg x {goalOption.proteinMultiplier}g/kg
         </p>
       </div>
 
       <div className="px-4 mb-4">
-        <div className="overflow-hidden rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] shadow-[0_18px_28px_-24px_rgba(15,23,42,0.26)]">
-          <div className="bg-[#191F28] px-4 py-4 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-medium text-white/70">오늘 섭취 현황</p>
-                <p className="mt-2 text-[32px] font-bold leading-none">
-                  {totalIntake}
-                  <span className="ml-1 text-[16px] font-medium text-white/70">g</span>
-                </p>
-              </div>
-              <div className="rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-semibold">
-                {goalOption.label}
-              </div>
+        <div className="rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-[#8B95A1]">오늘 섭취</p>
+              <p className="mt-1 text-[32px] font-bold leading-none text-[#191F28]">
+                {totalIntake}
+                <span className="ml-1 text-[16px] font-medium text-[#8B95A1]">g</span>
+              </p>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl bg-white/10 px-3 py-3">
-                <p className="text-[11px] font-medium text-white/70">목표</p>
-                <p className="mt-1 text-[18px] font-bold">{goal}g</p>
-              </div>
-              <div className="rounded-2xl bg-white/10 px-3 py-3">
-                <p className="text-[11px] font-medium text-white/70">남음</p>
-                <p className="mt-1 text-[18px] font-bold">{remaining}g</p>
-              </div>
-            </div>
+            <span className="rounded-full bg-[#F2F4F6] px-3 py-1.5 text-[12px] font-semibold text-[#4E5968]">
+              {goalOption.label}
+            </span>
           </div>
 
-          <div className="px-4 py-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[12px] font-medium text-[#8B95A1]">진행률</span>
-              <span className="text-[12px] font-semibold" style={{ color: pct >= 100 ? "#2CB52C" : "#3182F6" }}>
-                {pct}%
-              </span>
+          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#E5E8EB]">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                backgroundColor: pct >= 100 ? "#2CB52C" : "#3182F6",
+                width: `${pct}%`,
+              }}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="rounded-[18px] bg-[#F7F8FA] px-3 py-3">
+              <p className="text-[11px] font-semibold text-[#8B95A1]">목표</p>
+              <p className="mt-1 text-[18px] font-bold text-[#191F28]">{goal}g</p>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-[#E5E8EB]">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  backgroundColor: pct >= 100 ? "#2CB52C" : "#3182F6",
-                  width: `${pct}%`,
-                }}
-              />
-            </div>
-            <div className="mt-2 flex justify-between text-[11px] text-[#8B95A1]">
-              <span>0g</span>
-              <span>{goal}g</span>
+            <div className="rounded-[18px] bg-[#F7F8FA] px-3 py-3">
+              <p className="text-[11px] font-semibold text-[#8B95A1]">남음</p>
+              <p className="mt-1 text-[18px] font-bold text-[#191F28]">{remaining}g</p>
             </div>
           </div>
         </div>
@@ -210,7 +197,7 @@ export default function ProteinScreen({
             </div>
             <button
               className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${
-                cafeteriaProtein > 0 ? "bg-[#EBF3FE] text-[#3182F6]" : "bg-[#F2F4F6] text-[#8B95A1]"
+                cafeteriaProtein > 0 ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
               }`}
               disabled={cafeteriaProtein === 0}
               onClick={logCafeteria}
@@ -257,7 +244,7 @@ export default function ProteinScreen({
             </div>
             <button
               className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${
-                quickSelectionTotal > 0 ? "bg-[#3182F6] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
+                quickSelectionTotal > 0 ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
               }`}
               disabled={quickSelectionTotal === 0}
               onClick={logQuick}

@@ -35,108 +35,109 @@ export default function AuthScreen({
   passwordError: string
   confirmPasswordError: string
 }) {
+  const fields = [
+    {
+      key: "email",
+      label: "이메일",
+      value: email,
+      error: emailError,
+      type: "email",
+      autoComplete: "email",
+      placeholder: "example@email.com",
+      onChange: onEmailChange,
+    },
+    {
+      key: "password",
+      label: "비밀번호",
+      value: password,
+      error: passwordError,
+      type: "password",
+      autoComplete: authMode === "signup" ? "new-password" : "current-password",
+      placeholder: authMode === "signup" ? "6자 이상, 특수문자 포함" : "비밀번호",
+      onChange: onPasswordChange,
+    },
+    ...(authMode === "signup"
+      ? [
+          {
+            key: "confirm-password",
+            label: "비밀번호 확인",
+            value: confirmPassword,
+            error: confirmPasswordError,
+            type: "password",
+            autoComplete: "new-password",
+            placeholder: "비밀번호 다시 입력",
+            onChange: onConfirmPasswordChange,
+          },
+        ]
+      : []),
+  ]
+
   return (
-    <div className="mx-auto flex min-h-svh max-w-[480px] flex-col bg-[#F2F4F6]">
-      <header className="sticky top-0 z-20 border-b border-[#E5E8EB] bg-[#FFFFFF] px-4 pt-safe-top">
+    <div className="mx-auto flex min-h-svh max-w-[480px] flex-col bg-[#FFFFFF]">
+      <header className="sticky top-0 z-20 border-b border-[#EEF1F4] bg-[rgba(255,255,255,0.92)] px-5 pt-safe-top backdrop-blur">
         <div className="flex h-14 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BrandMark iconClassName="h-6 w-6 rounded-lg" textClassName="text-[17px] font-bold text-[#191F28]" />
-            {authMode === "signup" ? (
-              <span className="rounded-full bg-[#F8FAFC] px-2.5 py-1 text-[11px] font-medium text-[#8B95A1]">
-                1/3
-              </span>
-            ) : null}
-          </div>
+          <BrandMark iconClassName="h-7 w-7 rounded-[10px]" textClassName="text-[18px] font-bold text-[#191F28]" />
+          {authMode === "signup" ? (
+            <span className="rounded-full bg-[#F2F4F6] px-2.5 py-1 text-[11px] font-semibold text-[#6B7684]">1/3</span>
+          ) : null}
         </div>
       </header>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-8">
-        <div className="w-full max-w-[360px]">
-          <div className="px-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#E5E8EB] bg-[#FFFFFF] px-3 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-[#3182F6]" />
-              <span className="text-[11px] font-semibold text-[#6B7684]">
-                {authMode === "signup" ? "새 계정 등록" : "저장된 계정으로 진입"}
-              </span>
+      <div className="flex-1 overflow-y-auto px-5 pb-36 pt-8">
+        <div>
+          <p className="text-[12px] font-semibold text-[#8B95A1]">{authMode === "signup" ? "계정 만들기" : "계정 로그인"}</p>
+          <h1 className="mt-2 text-[34px] font-bold leading-[1.08] tracking-[-0.03em] text-[#191F28]">
+            {authMode === "signup" ? "회원가입" : "로그인"}
+          </h1>
+          <p className="mt-3 text-[14px] leading-6 text-[#6B7684]">
+            {authMode === "signup" ? "계정을 만들고 바로 기본 정보와 루틴을 설정합니다" : "기존 계정으로 이어서 들어갑니다"}
+          </p>
+        </div>
+
+        <div className="mt-8 overflow-hidden rounded-[26px] border border-[#E7EBEF] bg-[#F7F8FA]">
+          {fields.map((field, index) => (
+            <div
+              key={field.key}
+              className={`px-4 py-4 ${index === 0 ? "" : "border-t border-[#E7EBEF]"}`}
+            >
+              <label className="block text-[12px] font-semibold text-[#6B7684]">{field.label}</label>
+              <input
+                aria-invalid={Boolean(field.error)}
+                autoComplete={field.autoComplete}
+                className="mt-2 h-8 w-full bg-transparent text-[17px] font-semibold text-[#191F28] outline-none placeholder:font-medium placeholder:text-[#A2ABB6]"
+                onChange={(event) => field.onChange(event.target.value)}
+                placeholder={field.placeholder}
+                type={field.type}
+                value={field.value}
+              />
+              {field.error ? <p className="mt-2 text-[12px] font-medium text-[#F97316]">{field.error}</p> : null}
             </div>
-            <h1 className="mt-4 text-[30px] font-bold leading-[1.14] text-[#191F28]">
-              {authMode === "signup" ? "회원가입" : "로그인"}
-            </h1>
-            <p className="mt-2 text-[13px] leading-5 text-[#8B95A1]">
-              {authMode === "signup" ? "계정을 만들고 바로 기본 정보와 루틴을 설정합니다" : "가입한 계정으로 이어서 들어갑니다"}
-            </p>
-          </div>
+          ))}
+        </div>
 
-          <div className="mt-5 rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-5 shadow-[0_18px_28px_-24px_rgba(15,23,42,0.22)]">
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="mb-2 block text-[12px] font-semibold text-[#4E5968]">이메일</label>
-                <input
-                  aria-invalid={Boolean(emailError)}
-                  autoComplete="email"
-                  className="w-full rounded-[18px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3.5 text-[15px] font-medium text-[#191F28] outline-none placeholder:text-[#8B95A1]"
-                  onChange={(event) => onEmailChange(event.target.value)}
-                  placeholder="이메일"
-                  type="email"
-                  value={email}
-                />
-                {emailError ? <p className="mt-2 text-[12px] font-medium text-[#F97316]">{emailError}</p> : null}
-              </div>
+        {authError ? (
+          <div className="mt-4 rounded-[18px] bg-[#FFF4EB] px-4 py-3 text-[13px] font-medium text-[#F97316]">{authError}</div>
+        ) : null}
+      </div>
 
-              <div>
-                <label className="mb-2 block text-[12px] font-semibold text-[#4E5968]">비밀번호</label>
-                <input
-                  aria-invalid={Boolean(passwordError)}
-                  autoComplete={authMode === "signup" ? "new-password" : "current-password"}
-                  className="w-full rounded-[18px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3.5 text-[15px] font-medium text-[#191F28] outline-none placeholder:text-[#8B95A1]"
-                  onChange={(event) => onPasswordChange(event.target.value)}
-                  placeholder="비밀번호"
-                  type="password"
-                  value={password}
-                />
-                {passwordError ? <p className="mt-2 text-[12px] font-medium text-[#F97316]">{passwordError}</p> : null}
-              </div>
-
-              {authMode === "signup" ? (
-                <div>
-                  <label className="mb-2 block text-[12px] font-semibold text-[#4E5968]">비밀번호 확인</label>
-                  <input
-                    aria-invalid={Boolean(confirmPasswordError)}
-                    autoComplete="new-password"
-                    className="w-full rounded-[18px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3.5 text-[15px] font-medium text-[#191F28] outline-none placeholder:text-[#8B95A1]"
-                    onChange={(event) => onConfirmPasswordChange(event.target.value)}
-                    placeholder="비밀번호 확인"
-                    type="password"
-                    value={confirmPassword}
-                  />
-                  {confirmPasswordError ? (
-                    <p className="mt-2 text-[12px] font-medium text-[#F97316]">{confirmPasswordError}</p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {authError ? <p className="text-[12px] font-medium text-[#F97316]">{authError}</p> : null}
-            </div>
-
-            <div className="mt-5 border-t border-[#F2F4F6] pt-4">
-              <button
-                className={`w-full rounded-[18px] py-3.5 text-[14px] font-semibold transition-opacity ${
-                  canSubmit ? "bg-[#3182F6] text-white active:opacity-75" : "bg-[#E5E8EB] text-[#8B95A1]"
-                }`}
-                disabled={!canSubmit}
-                onClick={onSubmit}
-                type="button"
-              >
-                {authMode === "signup" ? "다음" : "로그인"}
-              </button>
-              <p className="mt-4 text-center text-[12px] text-[#8B95A1]">
-                {authMode === "signup" ? "계정이 있다면? " : "계정이 없다면? "}
-                <button className="font-semibold text-[#3182F6]" onClick={onToggleMode} type="button">
-                  {authMode === "signup" ? "로그인" : "회원가입"}
-                </button>
-              </p>
-            </div>
-          </div>
+      <div className="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-white via-white to-[rgba(255,255,255,0)]">
+        <div className="mx-auto max-w-[480px] px-5 pb-safe-bottom pt-6">
+          <p className="mb-3 text-center text-[13px] text-[#8B95A1]">
+            {authMode === "signup" ? "계정이 있다면? " : "계정이 없다면? "}
+            <button className="font-semibold text-[#3182F6]" onClick={onToggleMode} type="button">
+              {authMode === "signup" ? "로그인" : "회원가입"}
+            </button>
+          </p>
+          <button
+            className={`h-14 w-full rounded-[18px] text-[15px] font-semibold transition-all ${
+              canSubmit ? "bg-[#191F28] text-white active:scale-[0.99]" : "bg-[#E7EBEF] text-[#9AA4B2]"
+            }`}
+            disabled={!canSubmit}
+            onClick={onSubmit}
+            type="button"
+          >
+            {authMode === "signup" ? "다음" : "로그인"}
+          </button>
         </div>
       </div>
     </div>

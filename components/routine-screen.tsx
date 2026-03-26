@@ -9,6 +9,7 @@ import {
   isRestDay,
   type RoutineMap,
 } from "@/lib/app-config"
+import MachineVisual from "./machine-visual"
 
 export default function RoutineScreen({
   onEdit,
@@ -34,43 +35,32 @@ export default function RoutineScreen({
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-[20px] font-bold tracking-tight text-[#191F28]">주간 루틴</h2>
-            <p className="mt-0.5 text-[13px] text-[#8B95A1]">가장 먼저 확인할 루틴부터 보여줍니다</p>
+            <p className="text-[12px] font-semibold text-[#8B95A1]">주간 계획</p>
+            <h2 className="mt-1 text-[24px] font-bold tracking-tight text-[#191F28]">루틴</h2>
+            <p className="mt-1.5 text-[13px] text-[#6B7684]">
+              {hasWorkoutBodyParts(focusRoutine.bodyParts)
+                ? `${focusDay.full} · ${formatBodyParts(focusRoutine.bodyParts)}`
+                : "먼저 볼 루틴부터 정리합니다"}
+            </p>
           </div>
+          <button
+            className="rounded-full bg-[#191F28] px-3.5 py-2 text-[12px] font-semibold text-white"
+            onClick={onEdit}
+            type="button"
+          >
+            수정
+          </button>
         </div>
-      </div>
-
-      <div className="px-4 mb-4">
-        <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[12px] font-semibold text-[#8B95A1]">{focusDay.key === todayKey ? "오늘 루틴" : "가장 먼저 볼 루틴"}</p>
-              <p className="mt-1 text-[20px] font-bold leading-none text-[#191F28]">{focusDay.full}</p>
-              <p className="mt-2 text-[13px] leading-5 text-[#4E5968]">
-                {hasWorkoutBodyParts(focusRoutine.bodyParts)
-                  ? `${formatBodyParts(focusRoutine.bodyParts)} · 운동 ${focusRoutine.exercises.length}개`
-                  : "아직 설정된 루틴이 없습니다"}
-              </p>
-            </div>
-            <button
-              className="rounded-full bg-[#EBF3FE] px-3.5 py-2 text-[12px] font-semibold text-[#3182F6]"
-              onClick={onEdit}
-              type="button"
-            >
-              루틴 수정
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 mb-4 grid grid-cols-2 gap-2">
-        <div className="rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] p-4">
-          <p className="text-[12px] font-medium text-[#8B95A1]">운동일</p>
-          <p className="mt-1 text-[24px] font-bold leading-none text-[#191F28]">{configuredDays.length}일</p>
-        </div>
-        <div className="rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] p-4">
-          <p className="text-[12px] font-medium text-[#8B95A1]">총 세트</p>
-          <p className="mt-1 text-[24px] font-bold leading-none text-[#191F28]">{totalSets}세트</p>
+        <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
+          <span className="shrink-0 rounded-full bg-[#FFFFFF] px-3 py-2 text-[12px] font-semibold text-[#191F28] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+            운동일 {configuredDays.length}일
+          </span>
+          <span className="shrink-0 rounded-full bg-[#FFFFFF] px-3 py-2 text-[12px] font-semibold text-[#191F28] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+            총 세트 {totalSets}
+          </span>
+          <span className="shrink-0 rounded-full bg-[#FFFFFF] px-3 py-2 text-[12px] font-semibold text-[#191F28] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+            대표 루틴 {focusDay.full}
+          </span>
         </div>
       </div>
 
@@ -126,7 +116,7 @@ export default function RoutineScreen({
           return (
             <div
               key={day.key}
-              className={`overflow-hidden rounded-2xl border ${
+              className={`overflow-hidden rounded-[22px] border ${
                 isToday ? "border-[#3182F6]" : "border-[#E5E8EB]"
               }`}
             >
@@ -161,7 +151,10 @@ export default function RoutineScreen({
                 <div className="divide-y divide-[#E5E8EB] bg-[#FFFFFF]">
                   {routine.exercises.map((exercise) => (
                     <div key={exercise.id} className="flex items-center justify-between px-4 py-3">
-                      <span className="text-[13px] font-medium text-[#191F28]">{exercise.machineName}</span>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <MachineVisual machineId={exercise.machineId} size={36} />
+                        <span className="truncate text-[13px] font-medium text-[#191F28]">{exercise.machineName}</span>
+                      </div>
                       <span className="text-[12px] text-[#8B95A1]">
                         {exercise.weight}kg · {exercise.reps}회 · {exercise.sets}세트
                       </span>

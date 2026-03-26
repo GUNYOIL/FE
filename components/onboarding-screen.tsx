@@ -14,6 +14,7 @@ import {
   getDayMeta,
   getRoutineDayCardPreview,
   getGoalOption,
+  getMachineVisualLabel,
   getPreferredMachineCategories,
   getRoutineFocusHint,
   getRoutineFocusLabel,
@@ -33,6 +34,7 @@ import {
 import type { OnboardingProfileDraft } from "@/lib/session"
 import BrandMark from "./brand-mark"
 import { SearchIcon, Trash2Icon, XIcon } from "./icons"
+import MachineVisual from "./machine-visual"
 
 type Step = 1 | 2
 type RoutineStage = "focus" | "exercise" | "details"
@@ -231,8 +233,8 @@ export default function OnboardingScreen({
   const stageTitle = step === 1 ? "기본 정보" : "루틴 설정"
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-[480px] flex-col bg-[#F2F4F6]">
-      <header className="sticky top-0 z-20 border-b border-[#E5E8EB] bg-[#FFFFFF] px-4 pt-safe-top">
+    <div className="mx-auto flex min-h-svh max-w-[480px] flex-col bg-[#FFFFFF]">
+      <header className="sticky top-0 z-20 border-b border-[#EEF1F4] bg-[rgba(255,255,255,0.94)] px-4 pt-safe-top backdrop-blur">
         <div className="flex h-14 items-center justify-between">
           <button
             className="text-[14px] font-semibold text-[#4E5968]"
@@ -256,21 +258,18 @@ export default function OnboardingScreen({
       <div className="flex-1 overflow-y-auto pb-32 no-scrollbar">
         {step === 1 ? (
           <div className="px-4 pt-6 pb-6">
-            <div className="rounded-[28px] border border-[#E5E8EB] bg-[#FFFFFF] p-5 shadow-[0_20px_36px_-32px_rgba(15,23,42,0.24)]">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#F8FAFC] px-3 py-1.5">
-                <span className="h-2 w-2 rounded-full bg-[#3182F6]" />
-                <span className="text-[11px] font-semibold text-[#6B7684]">기본 정보 입력</span>
-              </div>
-              <h1 className="mt-4 text-[24px] font-bold leading-snug text-[#191F28]">
+            <div>
+              <p className="text-[12px] font-semibold text-[#8B95A1]">기본 정보 입력</p>
+              <h1 className="mt-2 text-[30px] font-bold leading-[1.12] tracking-[-0.03em] text-[#191F28]">
                 성별, 키, 몸무게,
                 <br />
-                목표를 입력해요
+                목표 설정
               </h1>
-              <p className="mt-2 text-[13px] leading-5 text-[#8B95A1]">
-                입력한 몸무게와 목표 기준으로 하루 단백질 목표를 계산합니다
+              <p className="mt-3 text-[14px] leading-6 text-[#6B7684]">
+                입력한 몸무게와 목표를 기준으로 하루 단백질 목표를 계산합니다
               </p>
 
-              <div className="mt-6 flex flex-col gap-4">
+              <div className="mt-6 flex flex-col gap-3">
                 <div>
                   <p className="mb-2 text-[12px] font-semibold text-[#191F28]">성별</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -280,10 +279,10 @@ export default function OnboardingScreen({
                     ].map((item) => (
                       <button
                         key={item.value}
-                        className={`rounded-2xl border px-4 py-3 text-[14px] font-semibold transition-colors ${
+                        className={`rounded-[18px] border px-4 py-3 text-[14px] font-semibold transition-colors ${
                           gender === item.value
                             ? "border-[#3182F6] bg-[#EBF3FE] text-[#3182F6]"
-                            : "border-[#E5E8EB] bg-[#FFFFFF] text-[#4E5968]"
+                            : "border-[#E5E8EB] bg-[#F7F8FA] text-[#4E5968]"
                         }`}
                         onClick={() => setGender(item.value)}
                         type="button"
@@ -298,7 +297,7 @@ export default function OnboardingScreen({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-2 text-[12px] font-semibold text-[#191F28]">키</p>
-                    <div className="flex items-center gap-2 rounded-2xl border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3">
+                    <div className="flex items-center gap-2 rounded-[18px] border border-[#E5E8EB] bg-[#F7F8FA] px-4 py-3">
                       <input
                         className="w-full bg-transparent text-[17px] font-semibold text-[#191F28] outline-none"
                         inputMode="numeric"
@@ -314,7 +313,7 @@ export default function OnboardingScreen({
 
                   <div>
                     <p className="mb-2 text-[12px] font-semibold text-[#191F28]">몸무게</p>
-                    <div className="flex items-center gap-2 rounded-2xl border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3">
+                    <div className="flex items-center gap-2 rounded-[18px] border border-[#E5E8EB] bg-[#F7F8FA] px-4 py-3">
                       <input
                         className="w-full bg-transparent text-[17px] font-semibold text-[#191F28] outline-none"
                         inputMode="numeric"
@@ -331,12 +330,12 @@ export default function OnboardingScreen({
 
                 <div>
                   <p className="mb-2 text-[12px] font-semibold text-[#191F28]">목표</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-2">
                     {GOAL_OPTIONS.map((item) => (
                       <button
                         key={item.key}
-                        className={`rounded-[22px] border p-4 text-left transition-colors ${
-                          goal === item.key ? "border-[#3182F6] bg-[#EBF3FE]" : "border-[#E5E8EB] bg-[#FFFFFF]"
+                        className={`rounded-[20px] border p-4 text-left transition-colors ${
+                          goal === item.key ? "border-[#3182F6] bg-[#EBF3FE]" : "border-[#E5E8EB] bg-[#F7F8FA]"
                         }`}
                         onClick={() => setGoal(item.key)}
                         type="button"
@@ -350,7 +349,7 @@ export default function OnboardingScreen({
                   </div>
                 </div>
 
-                <div className="rounded-[24px] bg-[#F8FAFC] p-4">
+                <div className="rounded-[22px] border border-[#E5E8EB] bg-[#F7F8FA] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[12px] font-semibold text-[#8B95A1]">계산된 단백질 목표</p>
@@ -372,28 +371,27 @@ export default function OnboardingScreen({
           </div>
         ) : (
           <div className="flex flex-col gap-5 px-4 pb-6 pt-6">
-            <div className="rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-4 shadow-[0_16px_28px_-24px_rgba(15,23,42,0.22)]">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-[22px] font-bold leading-tight text-[#191F28]">루틴 설정</h1>
-                  <p className="mt-1.5 text-[13px] leading-5 text-[#4E5968]">
-                    {routineStage === "focus"
-                      ? "요일별 루틴 유형을 정해 주세요"
-                      : routineStage === "exercise"
-                        ? "해당 요일에 할 운동만 골라 주세요"
-                        : "무게, 횟수, 세트를 채워 주세요"}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[11px] font-medium text-[#8B95A1]">완료</p>
-                  <p className="mt-1 text-[18px] font-bold leading-none">
-                    {completedRoutineDays.length}/{workingDays.length || 0}
-                  </p>
-                </div>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[12px] font-semibold text-[#8B95A1]">루틴 설정</p>
+                <h1 className="mt-1 text-[28px] font-bold leading-[1.12] tracking-[-0.03em] text-[#191F28]">주간 루틴 구성</h1>
+                <p className="mt-2 text-[14px] leading-6 text-[#6B7684]">
+                  {routineStage === "focus"
+                    ? "요일별 루틴 유형을 정해 주세요"
+                    : routineStage === "exercise"
+                      ? "해당 요일에 할 운동만 골라 주세요"
+                      : "무게, 횟수, 세트를 채워 주세요"}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-[18px] bg-[#F7F8FA] px-3 py-2 text-right">
+                <p className="text-[11px] font-semibold text-[#8B95A1]">완료</p>
+                <p className="mt-1 text-[18px] font-bold leading-none text-[#191F28]">
+                  {completedRoutineDays.length}/{workingDays.length || 0}
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 rounded-[22px] border border-[#E5E8EB] bg-[#FFFFFF] p-1">
+            <div className="grid grid-cols-3 gap-1 rounded-[20px] bg-[#F2F4F6] p-1">
               {[
                 { key: "focus" as const, label: "부위 설정", enabled: true },
                 { key: "exercise" as const, label: "운동 선택", enabled: canGoExerciseStage },
@@ -607,11 +605,19 @@ export default function OnboardingScreen({
                               }
                               type="button"
                             >
-                              <div>
-                                <p className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
-                                  {machine.name}
-                                </p>
-                                <p className="mt-1 text-[11px] text-[#8B95A1]">{machine.muscle}</p>
+                              <div className="flex min-w-0 items-center gap-3">
+                                <MachineVisual category={machine.category} machineId={machine.id} selected={isSelected} size={40} />
+                                <div className="min-w-0">
+                                  <p className={`truncate text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
+                                    {machine.name}
+                                  </p>
+                                  <div className="mt-1 flex items-center gap-1.5">
+                                    <span className="rounded-full bg-[#F2F4F6] px-1.5 py-0.5 text-[10px] font-semibold text-[#6B7684]">
+                                      {getMachineVisualLabel(machine.id, machine.category)}
+                                    </span>
+                                    <p className="truncate text-[11px] text-[#8B95A1]">{machine.muscle}</p>
+                                  </div>
+                                </div>
                               </div>
                               <span
                                 className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
@@ -652,11 +658,14 @@ export default function OnboardingScreen({
                           key={exercise.id}
                           className="flex items-center justify-between rounded-xl border border-[#E5E8EB] bg-[#FFFFFF] px-3 py-3"
                         >
-                          <div>
-                            <p className="font-semibold text-[#191F28]">{exercise.machineName}</p>
-                            <p className="mt-1 text-[11px] text-[#8B95A1]">
-                              {exercise.weight || "-"}kg · {exercise.reps || "-"}회 · {exercise.sets || "-"}세트
-                            </p>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <MachineVisual machineId={exercise.machineId} size={40} />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-[#191F28]">{exercise.machineName}</p>
+                              <p className="mt-1 text-[11px] text-[#8B95A1]">
+                                {exercise.weight || "-"}kg · {exercise.reps || "-"}회 · {exercise.sets || "-"}세트
+                              </p>
+                            </div>
                           </div>
                           <button
                             className="rounded-full p-1 text-[#8B95A1]"
@@ -693,9 +702,12 @@ export default function OnboardingScreen({
                       {selectedDayRoutine.exercises.map((exercise) => (
                         <div key={exercise.id} className="rounded-2xl border border-[#E5E8EB] bg-[#F8FAFC] p-3">
                           <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[13px] font-semibold text-[#191F28]">{exercise.machineName}</p>
-                              <p className="mt-1 text-[11px] text-[#8B95A1]">무게, 횟수, 세트를 모두 입력해 주세요</p>
+                            <div className="flex min-w-0 items-center gap-3">
+                              <MachineVisual machineId={exercise.machineId} size={40} />
+                              <div className="min-w-0">
+                                <p className="truncate text-[13px] font-semibold text-[#191F28]">{exercise.machineName}</p>
+                                <p className="mt-1 text-[11px] text-[#8B95A1]">무게, 횟수, 세트를 모두 입력해 주세요</p>
+                              </div>
                             </div>
                             <button
                               className="rounded-full p-1 text-[#8B95A1]"
@@ -805,13 +817,13 @@ export default function OnboardingScreen({
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E5E8EB] bg-[#FFFFFF] px-4 py-3 pb-safe-bottom">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#EEF1F4] bg-[rgba(255,255,255,0.96)] px-4 py-3 pb-safe-bottom backdrop-blur">
         <div className="mx-auto max-w-[480px]">
           <p className="mb-3 text-center text-[12px] text-[#8B95A1]">{step === 1 ? profileSummary : routineSummary}</p>
           <div className="flex gap-2">
             {step === 1 ? null : (
               <button
-                className="flex-1 rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] py-3 text-[14px] font-semibold text-[#4E5968]"
+                className="flex-1 rounded-[18px] border border-[#E5E8EB] bg-[#F7F8FA] py-3 text-[14px] font-semibold text-[#4E5968]"
                 onClick={() => {
                   if (routineStage === "focus") {
                     if (onBackToProfile) {
@@ -839,7 +851,7 @@ export default function OnboardingScreen({
                     : routineStage === "exercise"
                       ? canGoDetailStage
                       : canCompleteRoutine)
-                  ? "bg-[#3182F6] active:opacity-80"
+                  ? "bg-[#191F28] active:opacity-80"
                   : "bg-[#E5E8EB] text-[#8B95A1]"
               }`}
               disabled={

@@ -162,6 +162,39 @@ export type PerformanceTrainingPart = (typeof PERFORMANCE_TRAINING_PARTS)[number
 export type RoutineFocus = BodyPart | PerformanceTrainingPart
 export type GoalKey = (typeof GOAL_OPTIONS)[number]["key"]
 export type MachineCategoryKey = (typeof MACHINE_CATEGORIES)[number]["key"]
+export type MachineId = (typeof MACHINES)[number]["id"]
+export type MachineVisualKey =
+  | "machine"
+  | "chest"
+  | "back"
+  | "legs"
+  | "shoulder"
+  | "arms"
+  | "core"
+  | "cardio"
+  | "bench"
+  | "pressMachine"
+  | "fly"
+  | "latPulldown"
+  | "row"
+  | "pullUp"
+  | "legPress"
+  | "legExtension"
+  | "legCurl"
+  | "squat"
+  | "hinge"
+  | "lunge"
+  | "hipThrust"
+  | "calfRaise"
+  | "shoulderPress"
+  | "raise"
+  | "curl"
+  | "triceps"
+  | "backExtension"
+  | "treadmill"
+  | "cycle"
+  | "elliptical"
+  | "rowErg"
 export type Gender = "male" | "female"
 
 export type ExerciseDraft = {
@@ -245,6 +278,130 @@ export function createEmptyRoutineMap(): RoutineMap {
     sat: { bodyParts: [], exercises: [] },
     sun: { bodyParts: [], exercises: [] },
   }
+}
+
+const MACHINE_VISUAL_MAP: Record<MachineId, MachineVisualKey> = {
+  fly: "fly",
+  "chest-press": "pressMachine",
+  "incline-press": "pressMachine",
+  "barbell-bench": "bench",
+  "dumbbell-bench": "bench",
+  "incline-dumbbell-press": "bench",
+  "decline-dumbbell-press": "bench",
+  "dumbbell-fly": "fly",
+  "weighted-dips": "bench",
+  "lat-pulldown": "latPulldown",
+  "seated-row": "row",
+  "assisted-pullup": "pullUp",
+  "dumbbell-row": "row",
+  "barbell-row": "row",
+  "pendlay-row": "row",
+  "pull-up": "pullUp",
+  "chin-up": "pullUp",
+  "barbell-shrug": "row",
+  "leg-press": "legPress",
+  "leg-extension": "legExtension",
+  "leg-curl": "legCurl",
+  "smith-squat": "squat",
+  "barbell-back-squat": "squat",
+  "front-squat": "squat",
+  "goblet-squat": "squat",
+  "romanian-deadlift": "hinge",
+  "dumbbell-lunge": "lunge",
+  "bulgarian-split-squat": "lunge",
+  "barbell-hip-thrust": "hipThrust",
+  "shoulder-press": "shoulderPress",
+  "lateral-raise": "raise",
+  "dumbbell-press": "shoulderPress",
+  "rear-delt": "raise",
+  "barbell-overhead-press": "shoulderPress",
+  "arnold-press": "shoulderPress",
+  "dumbbell-lateral-raise": "raise",
+  "rear-delt-fly": "raise",
+  "upright-row": "raise",
+  "cable-pushdown": "triceps",
+  "dumbbell-curl": "curl",
+  "hammer-curl": "curl",
+  "preacher-curl": "curl",
+  "overhead-triceps": "triceps",
+  "dip-machine": "triceps",
+  "ez-bar-curl": "curl",
+  "incline-dumbbell-curl": "curl",
+  "concentration-curl": "curl",
+  "skull-crusher": "triceps",
+  "dumbbell-kickback": "triceps",
+  "reverse-curl": "curl",
+  "close-grip-bench": "bench",
+  "back-extension": "backExtension",
+  "glute-drive": "hipThrust",
+  "calf-raise": "calfRaise",
+  "ab-crunch": "core",
+  "cable-crunch": "core",
+  "hanging-leg-raise": "core",
+  "weighted-sit-up": "core",
+  "ab-wheel": "core",
+  treadmill: "treadmill",
+  cycle: "cycle",
+  elliptical: "elliptical",
+  rowing: "rowErg",
+}
+
+const CATEGORY_VISUAL_MAP: Record<MachineCategoryKey, MachineVisualKey> = {
+  all: "machine",
+  chest: "chest",
+  back: "back",
+  legs: "legs",
+  shoulder: "shoulder",
+  arms: "arms",
+  core: "core",
+  cardio: "cardio",
+}
+
+const MACHINE_VISUAL_LABEL_MAP: Record<MachineVisualKey, string> = {
+  machine: "기구",
+  chest: "가슴",
+  back: "등",
+  legs: "하체",
+  shoulder: "어깨",
+  arms: "팔",
+  core: "코어",
+  cardio: "유산소",
+  bench: "벤치",
+  pressMachine: "프레스",
+  fly: "플라이",
+  latPulldown: "랫풀",
+  row: "로우",
+  pullUp: "풀업",
+  legPress: "레그프레스",
+  legExtension: "익스텐션",
+  legCurl: "레그컬",
+  squat: "스쿼트",
+  hinge: "데드",
+  lunge: "런지",
+  hipThrust: "힙쓰러스트",
+  calfRaise: "카프",
+  shoulderPress: "숄더프레스",
+  raise: "레이즈",
+  curl: "컬",
+  triceps: "삼두",
+  backExtension: "백익스",
+  treadmill: "런닝",
+  cycle: "사이클",
+  elliptical: "일립티컬",
+  rowErg: "로잉",
+}
+
+export function getMachineById(machineId: string) {
+  return MACHINES.find((machine) => machine.id === machineId)
+}
+
+export function getMachineVisualKey(machineId: string, fallbackCategory?: MachineCategoryKey): MachineVisualKey {
+  const machine = getMachineById(machineId)
+  return MACHINE_VISUAL_MAP[machineId as MachineId] ?? CATEGORY_VISUAL_MAP[machine?.category ?? fallbackCategory ?? "all"]
+}
+
+export function getMachineVisualLabel(machineId: string, fallbackCategory?: MachineCategoryKey) {
+  return MACHINE_VISUAL_LABEL_MAP[getMachineVisualKey(machineId, fallbackCategory)]
 }
 
 export function getRoutineFocusOptions(goal: GoalKey): readonly RoutineFocus[] {

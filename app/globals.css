@@ -16,8 +16,15 @@ body {
   min-height: 100vh;
   font-family: var(--font-ui);
   color: #191f28;
-  background: #f2f4f6;
+  background: #ffffff;
   overscroll-behavior: none;
+}
+
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
