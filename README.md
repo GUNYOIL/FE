@@ -26,6 +26,28 @@ npm run dev
 - TanStack Query
 - PWA 기본 설정
 
+## 브랜치 전략
+
+- `main`: Vercel 프로덕션 배포 브랜치
+- `develop`: 일상 개발과 통합 확인 브랜치
+- `feature/<issue-number>-<summary>`: 이슈 단위 작업 브랜치
+
+## 협업 플로우
+
+1. GitHub에서 이슈를 생성합니다.
+2. `develop`에서 `feature/<issue-number>-<summary>` 브랜치를 생성합니다.
+3. 작업 후 PR을 `develop`으로 보냅니다.
+4. 배포할 시점에 `develop`을 `main`으로 병합합니다.
+5. Vercel은 `main` 브랜치를 프로덕션으로 배포합니다.
+
+예시:
+
+```bash
+git switch develop
+git pull origin develop
+git switch -c feature/123-onboarding-ux
+```
+
 ## 메모
 
 - 현재는 더미 데이터와 로컬 상태 기반 MVP입니다.
