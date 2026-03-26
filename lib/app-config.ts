@@ -147,7 +147,7 @@ export const MACHINES = [
   { id: "cable-crunch", name: "케이블 크런치", category: "core", muscle: "복근" },
   { id: "hanging-leg-raise", name: "행잉 레그 레이즈", category: "core", muscle: "복근/고관절" },
   { id: "weighted-sit-up", name: "웨이티드 싯업", category: "core", muscle: "복근" },
-  { id: "ab-wheel", name: "ab 휠 아웃", category: "core", muscle: "복근/코어" },
+  { id: "ab-wheel", name: "ab 롤 아웃", category: "core", muscle: "복근/코어" },
   { id: "treadmill", name: "런닝머신", category: "cardio", muscle: "전신" },
   { id: "cycle", name: "사이클", category: "cardio", muscle: "하체/심폐" },
   { id: "elliptical", name: "일립티컬", category: "cardio", muscle: "전신" },
@@ -266,6 +266,7 @@ export type ProteinLogEntry = {
 export type ProteinState = {
   cafeteria: CafeteriaItem[]
   quickCounts: Record<string, number>
+  quickProteinValues?: Record<string, string>
   log: ProteinLogEntry[]
 }
 
@@ -291,9 +292,14 @@ export const DEFAULT_CAFETERIA_ITEMS: CafeteriaItem[] = [
 export const QUICK_PROTEIN_ITEMS = [
   { id: "q1", name: "닭가슴살", protein: 23 },
   { id: "q2", name: "프로틴", protein: 24 },
-  { id: "q3", name: "우유", protein: 8 },
-  { id: "q4", name: "달걀", protein: 6 },
 ] as const
+
+export function createInitialQuickProteinValues() {
+  return QUICK_PROTEIN_ITEMS.reduce((accumulator, item) => {
+    accumulator[item.id] = String(item.protein)
+    return accumulator
+  }, {} as Record<string, string>)
+}
 
 export function createEmptyRoutineMap(): RoutineMap {
   return {
@@ -960,6 +966,7 @@ export function createInitialProteinState(): ProteinState {
       accumulator[item.id] = 0
       return accumulator
     }, {} as Record<string, number>),
+    quickProteinValues: createInitialQuickProteinValues(),
     log: [],
   }
 }

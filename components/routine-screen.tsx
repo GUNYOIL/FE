@@ -115,7 +115,7 @@ export default function RoutineScreen({
             <p className="text-[13px] font-semibold text-[#4E5968]">요일별 상태</p>
             <p className="mt-1 text-[12px] text-[#8B95A1]">오늘은 파란색, 운동일은 초록색, 비어 있는 요일은 회색으로 표시됩니다</p>
           </div>
-          <span className="rounded-full bg-[#FFFFFF] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-[#FFFFFF] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
             빈 요일 {emptyDays.length}일
           </span>
         </div>
@@ -177,7 +177,7 @@ export default function RoutineScreen({
             <p className="text-[13px] font-semibold text-[#4E5968]">요일별 상세</p>
             <p className="mt-1 text-[12px] text-[#8B95A1]">각 요일의 부위, 운동 수, 슈퍼세트 구성을 한 번에 확인할 수 있습니다</p>
           </div>
-          <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
             오늘 포함 {configuredDays.length}일
           </span>
         </div>
