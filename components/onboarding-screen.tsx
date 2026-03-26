@@ -32,6 +32,7 @@ import {
   type RoutineMap,
 } from "@/lib/app-config"
 import type { OnboardingProfileDraft } from "@/lib/session"
+import { sanitizePositiveIntegerInput } from "@/lib/numeric-input"
 import BrandMark from "./brand-mark"
 import { SearchIcon, Trash2Icon, XIcon } from "./icons"
 import MachineVisual from "./machine-visual"
@@ -301,9 +302,10 @@ export default function OnboardingScreen({
                       <input
                         className="w-full bg-transparent text-[17px] font-semibold text-[#191F28] outline-none"
                         inputMode="numeric"
-                        onChange={(event) => setHeight(event.target.value)}
+                        onChange={(event) => setHeight(sanitizePositiveIntegerInput(event.target.value))}
                         placeholder="175"
-                        type="number"
+                        pattern="[0-9]*"
+                        type="text"
                         value={height}
                       />
                       <span className="text-[13px] font-medium text-[#8B95A1]">cm</span>
@@ -317,9 +319,10 @@ export default function OnboardingScreen({
                       <input
                         className="w-full bg-transparent text-[17px] font-semibold text-[#191F28] outline-none"
                         inputMode="numeric"
-                        onChange={(event) => setWeight(event.target.value)}
+                        onChange={(event) => setWeight(sanitizePositiveIntegerInput(event.target.value))}
                         placeholder="70"
-                        type="number"
+                        pattern="[0-9]*"
+                        type="text"
                         value={weight}
                       />
                       <span className="text-[13px] font-medium text-[#8B95A1]">kg</span>
@@ -731,10 +734,16 @@ export default function OnboardingScreen({
                                     className="w-20 bg-transparent text-right text-[14px] font-semibold text-[#191F28] outline-none"
                                     inputMode="numeric"
                                     onChange={(event) =>
-                                      updateExercise(selectedDay, exercise.id, item.field, event.target.value)
+                                      updateExercise(
+                                        selectedDay,
+                                        exercise.id,
+                                        item.field,
+                                        sanitizePositiveIntegerInput(event.target.value),
+                                      )
                                     }
                                     placeholder="0"
-                                    type="number"
+                                    pattern="[0-9]*"
+                                    type="text"
                                     value={exercise[item.field]}
                                   />
                                   <span className="text-[11px] text-[#8B95A1]">{item.unit}</span>

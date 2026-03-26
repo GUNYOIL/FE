@@ -9,6 +9,7 @@ import {
   type ServingOption,
   type UserProfile,
 } from "@/lib/app-config"
+import { sanitizePositiveIntegerInput } from "@/lib/numeric-input"
 import { MinusIcon, PlusIcon } from "./icons"
 
 export default function ProteinScreen({
@@ -302,9 +303,11 @@ export default function ProteinScreen({
             <div className="flex w-20 items-center gap-1 rounded-xl border border-[#E5E8EB] bg-[#F8FAFC] px-3 py-2.5">
               <input
                 className="w-full bg-transparent text-[13px] font-semibold text-[#191F28] outline-none"
-                onChange={(event) => setCustomG(event.target.value)}
+                inputMode="numeric"
+                onChange={(event) => setCustomG(sanitizePositiveIntegerInput(event.target.value))}
                 placeholder="0"
-                type="number"
+                pattern="[0-9]*"
+                type="text"
                 value={customG}
               />
               <span className="text-[11px] text-[#8B95A1]">g</span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { DAY_META, formatBodyParts, getTodayDayKey, hasWorkoutBodyParts, isRestDay, type RoutineMap } from "@/lib/app-config"
+import { sanitizePositiveIntegerInput } from "@/lib/numeric-input"
 import { CheckCircle2Icon, CircleIcon } from "./icons"
 import MachineVisual from "./machine-visual"
 
@@ -257,9 +258,11 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
                           <span className="text-[11px] text-[#8B95A1]">{index + 1}세트</span>
                           <input
                             className="w-full rounded-lg border border-[#E5E8EB] bg-[#F8FAFC] py-2 text-center text-[13px] font-semibold text-[#191F28] outline-none"
-                            onChange={(event) => setActualReps(exercise.id, index, event.target.value)}
+                            onChange={(event) => setActualReps(exercise.id, index, sanitizePositiveIntegerInput(event.target.value))}
                             placeholder={String(exercise.targetReps)}
-                            type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            type="text"
                             value={exercise.actualReps[index] ?? ""}
                           />
                         </div>

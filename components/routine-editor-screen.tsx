@@ -28,6 +28,7 @@ import {
   type RoutineMap,
   type UserProfile,
 } from "@/lib/app-config"
+import { sanitizePositiveIntegerInput } from "@/lib/numeric-input"
 import { SearchIcon, Trash2Icon, XIcon } from "./icons"
 import MachineVisual from "./machine-visual"
 
@@ -660,10 +661,16 @@ export default function RoutineEditorScreen({
                                   className="w-20 bg-transparent text-right text-[14px] font-semibold text-[#191F28] outline-none"
                                   inputMode="numeric"
                                   onChange={(event) =>
-                                    updateExercise(selectedDay, exercise.id, item.field, event.target.value)
+                                    updateExercise(
+                                      selectedDay,
+                                      exercise.id,
+                                      item.field,
+                                      sanitizePositiveIntegerInput(event.target.value),
+                                    )
                                   }
                                   placeholder="0"
-                                  type="number"
+                                  pattern="[0-9]*"
+                                  type="text"
                                   value={exercise[item.field]}
                                 />
                                 <span className="text-[11px] text-[#8B95A1]">{item.unit}</span>
