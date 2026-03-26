@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --font-display: "Pretendard Variable", "Pretendard", "SUIT Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  --font-ui: "Pretendard Variable", "Pretendard", "SUIT Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-display: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-ui: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   --font-mono: "SFMono-Regular", "IBM Plex Mono", Menlo, Monaco, Consolas, monospace;
 }
 
@@ -25,6 +25,7 @@ input,
 textarea,
 select {
   -webkit-tap-highlight-color: transparent;
+  font-family: var(--font-ui);
 }
 
 ::selection {

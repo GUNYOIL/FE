@@ -42,6 +42,10 @@ type RootLayoutProps = Readonly<{
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="ko">
+      <head>
+        <link crossOrigin="" href="https://cdn.jsdelivr.net" rel="preconnect" />
+        <link href="https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/subsets/Pretendard-dynamic-subset.css" rel="stylesheet" />
+      </head>
       <body>
         <Providers>{children}</Providers>
         <PwaRegister />
