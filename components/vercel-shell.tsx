@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import AppShell from "@/components/app-shell"
 import BrandMark from "@/components/brand-mark"
 import OnboardingScreen from "@/components/onboarding-screen"
-import { createInitialProteinState, type OnboardingData, type ProteinState } from "@/lib/app-config"
+import { createInitialProteinState, normalizeRoutineMap, type OnboardingData, type ProteinState } from "@/lib/app-config"
 
 const STORAGE_KEY = "gunyoil-vercel-shell-v2"
 
@@ -41,6 +41,13 @@ function isOnboardingData(value: unknown): value is OnboardingData {
 
   const candidate = value as Partial<OnboardingData>
   return Boolean(candidate.profile && candidate.routines)
+}
+
+function normalizeOnboardingData(data: OnboardingData): OnboardingData {
+  return {
+    profile: data.profile,
+    routines: normalizeRoutineMap(data.routines),
+  }
 }
 
 function isProteinState(value: unknown): value is ProteinState {
@@ -225,7 +232,7 @@ export function VercelShell() {
       }
 
       if (isOnboardingData(parsed.onboardingData)) {
-        setOnboardingData(parsed.onboardingData)
+        setOnboardingData(normalizeOnboardingData(parsed.onboardingData))
       }
 
       if (isProteinState(parsed.proteinState)) {
@@ -309,7 +316,7 @@ export function VercelShell() {
   }
 
   const handleCompleteOnboarding = (data: OnboardingData) => {
-    setOnboardingData(data)
+    setOnboardingData(normalizeOnboardingData(data))
     setIsOnboarding(false)
     setIsOnboarded(true)
   }

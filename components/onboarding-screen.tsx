@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import {
-  BODY_PARTS,
   DAY_META,
   GOAL_OPTIONS,
   MACHINE_CATEGORIES,
@@ -11,16 +10,27 @@ import {
   calculateProteinTarget,
   createEmptyRoutineMap,
   createExerciseId,
+  formatBodyParts,
   getDayMeta,
+  getRoutineDayCardPreview,
   getGoalOption,
-  type DayKey,
+  getPreferredMachineCategories,
+  getRoutineFocusHint,
+  getRoutineFocusLabel,
+  getRoutineFocusOptions,
+  hasWorkoutBodyParts,
+  isRestDay,
+  toggleBodyPartSelection,
   type ExerciseDraft,
+  type DayKey,
   type Gender,
   type GoalKey,
   type MachineCategoryKey,
   type OnboardingData,
+  type RoutineFocus,
   type RoutineMap,
 } from "@/lib/app-config"
+import type { OnboardingProfileDraft } from "@/lib/session"
 import BrandMark from "./brand-mark"
 import { SearchIcon, Trash2Icon, XIcon } from "./icons"
 
@@ -33,19 +43,29 @@ function isExerciseConfigured(exercise: ExerciseDraft) {
 }
 
 export default function OnboardingScreen({
+  initialProfile,
+  initialRoutines,
+  initialStep = 1,
+  onBackToProfile,
   onComplete,
   onExit,
+  onProfileNext,
 }: {
+  initialProfile?: OnboardingProfileDraft
+  initialRoutines?: RoutineMap
+  initialStep?: Step
+  onBackToProfile?: () => void
   onComplete: (data: OnboardingData) => void
   onExit: () => void
+  onProfileNext?: (profile: OnboardingProfileDraft, routines: RoutineMap) => void
 }) {
-  const [step, setStep] = useState<Step>(1)
+  const [step, setStep] = useState<Step>(initialStep)
   const [routineStage, setRoutineStage] = useState<RoutineStage>("focus")
-  const [gender, setGender] = useState<Gender | "">("")
-  const [height, setHeight] = useState("")
-  const [weight, setWeight] = useState("")
-  const [goal, setGoal] = useState<GoalKey>("muscle_gain")
-  const [routines, setRoutines] = useState<RoutineMap>(createEmptyRoutineMap())
+  const [gender, setGender] = useState<Gender | "">(initialProfile?.gender ?? "")
+  const [height, setHeight] = useState(initialProfile?.height ?? "")
+  const [weight, setWeight] = useState(initialProfile?.weight ?? "")
+  const [goal, setGoal] = useState<GoalKey>(initialProfile?.goal ?? "muscle_gain")
+  const [routines, setRoutines] = useState<RoutineMap>(initialRoutines ?? createEmptyRoutineMap())
   const [selectedDay, setSelectedDay] = useState<DayKey>("mon")
   const [machineSearch, setMachineSearch] = useState("")
   const [machineCategory, setMachineCategory] = useState<MachineCategoryKey>("all")
@@ -53,14 +73,17 @@ export default function OnboardingScreen({
   const numericWeight = Number(weight)
   const proteinTarget = calculateProteinTarget(numericWeight, goal)
   const goalOption = getGoalOption(goal)
+  const routineFocusOptions = getRoutineFocusOptions(goal)
+  const routineFocusLabel = getRoutineFocusLabel(goal)
+  const routineFocusHint = getRoutineFocusHint(goal)
   const selectedDayRoutine = routines[selectedDay]
   const selectedDayMeta = getDayMeta(selectedDay)
-  const selectedDayNeedsExercise =
-    Boolean(selectedDayRoutine.bodyPart) && selectedDayRoutine.bodyPart !== "휴식"
+  const selectedDayBodyPartLabel = formatBodyParts(selectedDayRoutine.bodyParts)
+  const selectedDayNeedsExercise = hasWorkoutBodyParts(selectedDayRoutine.bodyParts)
 
   const workingDays = DAY_META.filter((day) => {
     const routine = routines[day.key]
-    return routine.bodyPart && routine.bodyPart !== "휴식"
+    return hasWorkoutBodyParts(routine.bodyParts)
   })
   const completedRoutineDays = workingDays.filter((day) => {
     const routine = routines[day.key]
@@ -71,37 +94,29 @@ export default function OnboardingScreen({
     return routine.exercises.length === 0 || routine.exercises.some((exercise) => !isExerciseConfigured(exercise))
   })
   const prioritizedMachines = useMemo(() => {
-    const bodyPartToCategory: Record<string, MachineCategoryKey> = {
-      "가슴": "chest",
-      "등": "back",
-      "하체": "legs",
-      "어깨": "shoulder",
-      "팔": "arms",
-      "유산소": "cardio",
-    }
-
     return MACHINES.filter((machine) => {
       const matchesSearch = machine.name.toLowerCase().includes(machineSearch.toLowerCase())
       const matchesCategory = machineCategory === "all" || machine.category === machineCategory
       return matchesSearch && matchesCategory
     }).sort((left, right) => {
-      const preferredCategory = selectedDayRoutine.bodyPart
-        ? bodyPartToCategory[selectedDayRoutine.bodyPart] ?? "all"
-        : "all"
-
-      const leftRank = preferredCategory !== "all" && left.category === preferredCategory ? 0 : 1
-      const rightRank = preferredCategory !== "all" && right.category === preferredCategory ? 0 : 1
+      const preferredCategories = getPreferredMachineCategories(selectedDayRoutine.bodyParts)
+      const leftRank = preferredCategories.includes(left.category) ? 0 : 1
+      const rightRank = preferredCategories.includes(right.category) ? 0 : 1
       return leftRank - rightRank
     })
-  }, [machineCategory, machineSearch, selectedDayRoutine.bodyPart])
+  }, [machineCategory, machineSearch, selectedDayRoutine.bodyParts])
 
-  const setBodyPart = (dayKey: DayKey, nextBodyPart: (typeof BODY_PARTS)[number]) => {
+  const toggleBodyPart = (dayKey: DayKey, nextBodyPart: RoutineFocus) => {
     setRoutines((previous) => ({
       ...previous,
-      [dayKey]:
-        nextBodyPart === "휴식"
-          ? { bodyPart: nextBodyPart, exercises: [] }
-          : { ...previous[dayKey], bodyPart: nextBodyPart },
+      [dayKey]: (() => {
+        const nextBodyParts = toggleBodyPartSelection(previous[dayKey].bodyParts, nextBodyPart, routineFocusOptions)
+        if (isRestDay(nextBodyParts)) {
+          return { bodyParts: nextBodyParts, exercises: [] }
+        }
+
+        return { ...previous[dayKey], bodyParts: nextBodyParts }
+      })(),
     }))
   }
 
@@ -117,7 +132,7 @@ export default function OnboardingScreen({
     setRoutines((previous) => ({
       ...previous,
       [dayKey]: {
-        bodyPart: previousRoutine.bodyPart,
+        bodyParts: [...previousRoutine.bodyParts],
         exercises: previousRoutine.exercises.map((exercise) => ({
           ...exercise,
           id: createExerciseId(dayKey, exercise.machineId),
@@ -183,11 +198,14 @@ export default function OnboardingScreen({
 
   const canProceedProfile =
     Number(height) > 0 && Number(weight) > 0 && (gender === "male" || gender === "female")
-  const canGoExerciseStage = Boolean(selectedDayRoutine.bodyPart)
+  const canGoExerciseStage = selectedDayRoutine.bodyParts.length > 0
   const canGoDetailStage =
-    selectedDayRoutine.bodyPart === "휴식" ||
-    (selectedDayRoutine.bodyPart !== "" && selectedDayRoutine.exercises.length > 0)
+    isRestDay(selectedDayRoutine.bodyParts) || (selectedDayRoutine.bodyParts.length > 0 && selectedDayRoutine.exercises.length > 0)
   const canCompleteRoutine = workingDays.length > 0 && incompleteDays.length === 0
+  const genderHelper = gender === "" ? "성별을 선택해 주세요" : ""
+  const heightHelper = height === "" ? "키를 입력해 주세요" : Number(height) <= 0 ? "0보다 큰 값을 입력해 주세요" : ""
+  const weightHelper = weight === "" ? "몸무게를 입력해 주세요" : Number(weight) <= 0 ? "0보다 큰 값을 입력해 주세요" : ""
+  const exitLabel = step === 1 ? "나가기" : onBackToProfile ? "이전" : "나가기"
 
   const profileSummary =
     canProceedProfile && proteinTarget > 0
@@ -197,10 +215,10 @@ export default function OnboardingScreen({
   const routineSummary =
     routineStage === "focus"
       ? canGoExerciseStage
-        ? `${selectedDayMeta.full} · ${selectedDayRoutine.bodyPart}`
-        : "선택한 요일의 운동 부위를 먼저 정해 주세요"
+        ? `${selectedDayMeta.full} · ${selectedDayBodyPartLabel}`
+        : `선택한 요일의 ${routineFocusLabel}을 먼저 정해 주세요`
       : routineStage === "exercise"
-        ? selectedDayRoutine.bodyPart === "휴식"
+        ? isRestDay(selectedDayRoutine.bodyParts)
           ? `${selectedDayMeta.full}은 휴식일입니다`
           : `${selectedDayRoutine.exercises.length}개 운동 선택됨`
         : canCompleteRoutine
@@ -216,8 +234,12 @@ export default function OnboardingScreen({
     <div className="mx-auto flex min-h-svh max-w-[480px] flex-col bg-[#F2F4F6]">
       <header className="sticky top-0 z-20 border-b border-[#E5E8EB] bg-[#FFFFFF] px-4 pt-safe-top">
         <div className="flex h-14 items-center justify-between">
-          <button className="text-[14px] font-semibold text-[#4E5968]" onClick={onExit} type="button">
-            계정
+          <button
+            className="text-[14px] font-semibold text-[#4E5968]"
+            onClick={step === 2 && onBackToProfile ? onBackToProfile : onExit}
+            type="button"
+          >
+            {exitLabel}
           </button>
           <div className="flex items-center gap-2">
             <BrandMark iconClassName="h-6 w-6 rounded-lg" textClassName="text-[17px] font-bold text-[#191F28]" />
@@ -235,13 +257,16 @@ export default function OnboardingScreen({
         {step === 1 ? (
           <div className="px-4 pt-6 pb-6">
             <div className="rounded-[28px] border border-[#E5E8EB] bg-[#FFFFFF] p-5 shadow-[0_20px_36px_-32px_rgba(15,23,42,0.24)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8B95A1]">Profile</p>
-              <h1 className="mt-3 text-[24px] font-bold leading-snug text-[#191F28]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#F8FAFC] px-3 py-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#3182F6]" />
+                <span className="text-[11px] font-semibold text-[#6B7684]">기본 정보 입력</span>
+              </div>
+              <h1 className="mt-4 text-[24px] font-bold leading-snug text-[#191F28]">
                 성별, 키, 몸무게,
                 <br />
                 목표를 입력해요
               </h1>
-              <p className="mt-2 text-[14px] leading-6 text-[#8B95A1]">
+              <p className="mt-2 text-[13px] leading-5 text-[#8B95A1]">
                 입력한 몸무게와 목표 기준으로 하루 단백질 목표를 계산합니다
               </p>
 
@@ -267,6 +292,7 @@ export default function OnboardingScreen({
                       </button>
                     ))}
                   </div>
+                  {genderHelper ? <p className="mt-2 text-[12px] text-[#8B95A1]">{genderHelper}</p> : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -283,6 +309,7 @@ export default function OnboardingScreen({
                       />
                       <span className="text-[13px] font-medium text-[#8B95A1]">cm</span>
                     </div>
+                    {heightHelper ? <p className="mt-2 text-[12px] text-[#8B95A1]">{heightHelper}</p> : null}
                   </div>
 
                   <div>
@@ -298,6 +325,7 @@ export default function OnboardingScreen({
                       />
                       <span className="text-[13px] font-medium text-[#8B95A1]">kg</span>
                     </div>
+                    {weightHelper ? <p className="mt-2 text-[12px] text-[#8B95A1]">{weightHelper}</p> : null}
                   </div>
                 </div>
 
@@ -344,29 +372,28 @@ export default function OnboardingScreen({
           </div>
         ) : (
           <div className="flex flex-col gap-5 px-4 pb-6 pt-6">
-            <div className="rounded-[28px] border border-[#E5E8EB] bg-[#FFFFFF] p-5 shadow-[0_20px_36px_-32px_rgba(15,23,42,0.24)]">
+            <div className="rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-4 shadow-[0_16px_28px_-24px_rgba(15,23,42,0.22)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8B95A1]">Routine</p>
-                  <h1 className="mt-3 text-[24px] font-bold leading-snug text-[#191F28]">
-                    루틴을 단계별로
-                    <br />
-                    설정해요
-                  </h1>
-                  <p className="mt-2 text-[14px] leading-6 text-[#8B95A1]">
-                    부위를 정하고, 운동을 고르고, 마지막으로 세트 정보를 입력하면 됩니다
+                  <h1 className="text-[22px] font-bold leading-tight text-[#191F28]">루틴 설정</h1>
+                  <p className="mt-1.5 text-[13px] leading-5 text-[#4E5968]">
+                    {routineStage === "focus"
+                      ? "요일별 루틴 유형을 정해 주세요"
+                      : routineStage === "exercise"
+                        ? "해당 요일에 할 운동만 골라 주세요"
+                        : "무게, 횟수, 세트를 채워 주세요"}
                   </p>
                 </div>
-                <div className="shrink-0 rounded-[18px] bg-[#EBF3FE] px-3 py-2 text-right">
-                  <p className="text-[11px] font-medium text-[#6B7684]">완료</p>
-                  <p className="mt-1 text-[18px] font-bold leading-none text-[#3182F6]">
+                <div className="shrink-0 text-right">
+                  <p className="text-[11px] font-medium text-[#8B95A1]">완료</p>
+                  <p className="mt-1 text-[18px] font-bold leading-none">
                     {completedRoutineDays.length}/{workingDays.length || 0}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1 rounded-[22px] border border-[#E5E8EB] bg-[#FFFFFF] p-1">
               {[
                 { key: "focus" as const, label: "부위 설정", enabled: true },
                 { key: "exercise" as const, label: "운동 선택", enabled: canGoExerciseStage },
@@ -374,18 +401,14 @@ export default function OnboardingScreen({
               ].map((item) => (
                 <button
                   key={item.key}
-                  className={`rounded-2xl border px-3 py-3 text-left transition-colors ${
-                    routineStage === item.key
-                      ? "border-[#3182F6] bg-[#EBF3FE]"
-                      : "border-[#E5E8EB] bg-[#FFFFFF]"
-                  } ${item.enabled ? "" : "opacity-50"}`}
+                  className={`rounded-[18px] px-3 py-3 text-center transition-colors ${
+                    routineStage === item.key ? "bg-[#191F28] text-white" : "bg-transparent text-[#6B7684]"
+                  } ${item.enabled ? "" : "opacity-40"}`}
                   disabled={!item.enabled}
                   onClick={() => setRoutineStage(item.key)}
                   type="button"
                 >
-                  <p className={`text-[13px] font-semibold ${routineStage === item.key ? "text-[#3182F6]" : "text-[#191F28]"}`}>
-                    {item.label}
-                  </p>
+                  <p className="text-[13px] font-semibold">{item.label}</p>
                 </button>
               ))}
             </div>
@@ -397,22 +420,23 @@ export default function OnboardingScreen({
                   <p className="mt-1 text-[13px] text-[#4E5968]">{selectedDayMeta.full}</p>
                 </div>
                 <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
-                  {selectedDayRoutine.bodyPart || "미설정"}
+                  {selectedDayBodyPartLabel}
                 </span>
               </div>
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                 {DAY_META.map((day) => {
                   const routine = routines[day.key]
                   const isSelected = selectedDay === day.key
+                  const dayPreview = getRoutineDayCardPreview(routine.bodyParts)
                   const isDone =
-                    Boolean(routine.bodyPart) &&
-                    (routine.bodyPart === "휴식" ||
+                    routine.bodyParts.length > 0 &&
+                    (isRestDay(routine.bodyParts) ||
                       (routine.exercises.length > 0 && routine.exercises.every(isExerciseConfigured)))
 
                   return (
                     <button
                       key={day.key}
-                      className={`flex min-w-[68px] flex-shrink-0 flex-col items-center gap-1 rounded-[18px] border px-3 py-3 transition-all ${
+                      className={`flex min-w-[74px] flex-shrink-0 flex-col items-center justify-between gap-2 rounded-[20px] border px-2.5 py-3 transition-all ${
                         isSelected
                           ? "border-[#3182F6] bg-[#EBF3FE] shadow-[0_12px_24px_-22px_rgba(49,130,246,0.9)]"
                           : "border-[#E5E8EB] bg-[#F8FAFC]"
@@ -420,17 +444,24 @@ export default function OnboardingScreen({
                       onClick={() => setSelectedDay(day.key)}
                       type="button"
                     >
-                      <span className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
-                        {day.label}
-                      </span>
-                      <span className={`text-[11px] ${isSelected ? "text-[#3182F6]" : "text-[#8B95A1]"}`}>
-                        {routine.bodyPart || "미설정"}
-                      </span>
-                      {isDone ? (
-                        <span className="rounded-full bg-[#3182F6] px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                          완료
+                      <span className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>{day.label}</span>
+                      <div className="flex min-h-[34px] w-full flex-col items-center justify-center gap-1">
+                        <span
+                          className={`max-w-full truncate text-center text-[11px] font-semibold leading-none ${
+                            isSelected ? "text-[#3182F6]" : "text-[#6B7684]"
+                          }`}
+                        >
+                          {dayPreview.label}
                         </span>
-                      ) : null}
+                        {dayPreview.extraLabel ? (
+                          <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-[#6B7684] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+                            {dayPreview.extraLabel}
+                          </span>
+                        ) : (
+                          <span className="h-[14px]" />
+                        )}
+                      </div>
+                      <span className={`h-1.5 w-1.5 rounded-full ${isDone ? "bg-[#2CB52C]" : "bg-[#D9DEE3]"}`} />
                     </button>
                   )
                 })}
@@ -442,24 +473,24 @@ export default function OnboardingScreen({
                 <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[12px] font-semibold text-[#8B95A1]">운동 부위</p>
-                      <p className="mt-1 text-[13px] text-[#4E5968]">먼저 해당 요일의 부위를 정합니다</p>
+                      <p className="text-[12px] font-semibold text-[#8B95A1]">{routineFocusLabel}</p>
+                      <p className="mt-1 text-[13px] text-[#4E5968]">{routineFocusHint}</p>
                     </div>
                     <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
-                      {selectedDayRoutine.bodyPart || "미설정"}
+                      {selectedDayBodyPartLabel}
                     </span>
                   </div>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
-                    {BODY_PARTS.map((part) => (
+                    {routineFocusOptions.map((part) => (
                       <button
                         key={part}
                         className={`rounded-2xl border py-3 text-[13px] font-medium transition-colors ${
-                          selectedDayRoutine.bodyPart === part
+                          selectedDayRoutine.bodyParts.includes(part)
                             ? "border-[#3182F6] bg-[#EBF3FE] text-[#3182F6]"
                             : "border-[#E5E8EB] bg-[#FFFFFF] text-[#191F28]"
                         }`}
-                        onClick={() => setBodyPart(selectedDay, part)}
+                        onClick={() => toggleBodyPart(selectedDay, part)}
                         type="button"
                       >
                         {part}
@@ -503,7 +534,7 @@ export default function OnboardingScreen({
                           >
                             <div>
                               <p className="font-semibold text-[#191F28]">{day.full}</p>
-                              <p className="mt-1 text-[11px] text-[#8B95A1]">{routine.bodyPart}</p>
+                              <p className="mt-1 text-[11px] text-[#8B95A1]">{formatBodyParts(routine.bodyParts)}</p>
                             </div>
                             <span className="rounded-full bg-[#F8FAFC] px-2.5 py-1 text-[11px] font-semibold text-[#8B95A1]">
                               {routine.exercises.length}개
@@ -556,47 +587,54 @@ export default function OnboardingScreen({
 
                 {selectedDayNeedsExercise ? (
                   <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] p-2">
-                    <div className="flex flex-col">
-                      {prioritizedMachines.map((machine) => {
-                        const currentExercise = selectedDayRoutine.exercises.find((exercise) => exercise.machineId === machine.id)
-                        const isSelected = Boolean(currentExercise)
+                    {prioritizedMachines.length === 0 ? (
+                      <div className="px-3 py-8 text-center">
+                        <p className="text-[14px] font-semibold text-[#191F28]">검색 결과가 없습니다</p>
+                        <p className="mt-2 text-[12px] text-[#8B95A1]">검색어나 카테고리를 바꿔 보세요</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col">
+                        {prioritizedMachines.map((machine) => {
+                          const currentExercise = selectedDayRoutine.exercises.find((exercise) => exercise.machineId === machine.id)
+                          const isSelected = Boolean(currentExercise)
 
-                        return (
-                          <button
-                            key={machine.id}
-                            className="flex items-center justify-between rounded-2xl px-3 py-3 text-left hover:bg-[#F8FAFC]"
-                            onClick={() =>
-                              isSelected ? removeExercise(selectedDay, currentExercise!.id) : addExercise(selectedDay, machine.id)
-                            }
-                            type="button"
-                          >
-                            <div>
-                              <p className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
-                                {machine.name}
-                              </p>
-                              <p className="mt-1 text-[11px] text-[#8B95A1]">{machine.muscle}</p>
-                            </div>
-                            <span
-                              className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
-                                isSelected ? "bg-[#EBF3FE] text-[#3182F6]" : "bg-[#F8FAFC] text-[#8B95A1]"
-                              }`}
+                          return (
+                            <button
+                              key={machine.id}
+                              className="flex items-center justify-between rounded-2xl px-3 py-3 text-left hover:bg-[#F8FAFC]"
+                              onClick={() =>
+                                isSelected ? removeExercise(selectedDay, currentExercise!.id) : addExercise(selectedDay, machine.id)
+                              }
+                              type="button"
                             >
-                              {isSelected ? "선택됨" : "추가"}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
+                              <div>
+                                <p className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
+                                  {machine.name}
+                                </p>
+                                <p className="mt-1 text-[11px] text-[#8B95A1]">{machine.muscle}</p>
+                              </div>
+                              <span
+                                className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
+                                  isSelected ? "bg-[#EBF3FE] text-[#3182F6]" : "bg-[#F8FAFC] text-[#8B95A1]"
+                                }`}
+                              >
+                                {isSelected ? "선택됨" : "추가"}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : selectedDayRoutine.bodyPart === "휴식" ? (
+                ) : isRestDay(selectedDayRoutine.bodyParts) ? (
                   <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-6 text-center">
                     <p className="text-[14px] font-semibold text-[#191F28]">{selectedDayMeta.full}은 휴식일입니다</p>
                     <p className="mt-2 text-[12px] text-[#8B95A1]">휴식일은 운동 선택 없이 넘어갈 수 있습니다</p>
                   </div>
                 ) : (
                   <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-6 text-center">
-                    <p className="text-[14px] font-semibold text-[#191F28]">먼저 운동 부위를 선택해 주세요</p>
-                    <p className="mt-2 text-[12px] text-[#8B95A1]">부위를 고르면 추천 머신이 정렬되어 나옵니다</p>
+                    <p className="text-[14px] font-semibold text-[#191F28]">먼저 {routineFocusLabel}을 선택해 주세요</p>
+                    <p className="mt-2 text-[12px] text-[#8B95A1]">선택한 기준에 맞춰 추천 머신이 먼저 정렬됩니다</p>
                   </div>
                 )}
 
@@ -643,7 +681,7 @@ export default function OnboardingScreen({
                       <div>
                         <p className="text-[12px] font-semibold text-[#8B95A1]">세트 입력</p>
                         <p className="mt-1 text-[13px] text-[#4E5968]">
-                          {selectedDayMeta.full} · {selectedDayRoutine.bodyPart}
+                          {selectedDayMeta.full} · {selectedDayBodyPartLabel}
                         </p>
                       </div>
                       <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
@@ -712,7 +750,7 @@ export default function OnboardingScreen({
                       ))}
                     </div>
                   </div>
-                ) : selectedDayRoutine.bodyPart === "휴식" ? (
+                ) : isRestDay(selectedDayRoutine.bodyParts) ? (
                   <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-6 text-center">
                     <p className="text-[14px] font-semibold text-[#191F28]">{selectedDayMeta.full}은 휴식일입니다</p>
                     <p className="mt-2 text-[12px] text-[#8B95A1]">휴식일은 세트 입력 없이 완료됩니다</p>
@@ -745,7 +783,7 @@ export default function OnboardingScreen({
                             <div>
                               <p className="font-semibold text-[#191F28]">{day.full}</p>
                               <p className="mt-1 text-[11px] text-[#8B95A1]">
-                                {routine.bodyPart} · 운동 {routine.exercises.length}개
+                                {formatBodyParts(routine.bodyParts)} · 운동 {routine.exercises.length}개
                               </p>
                             </div>
                             <span
@@ -776,6 +814,11 @@ export default function OnboardingScreen({
                 className="flex-1 rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] py-3 text-[14px] font-semibold text-[#4E5968]"
                 onClick={() => {
                   if (routineStage === "focus") {
+                    if (onBackToProfile) {
+                      onBackToProfile()
+                      return
+                    }
+
                     setStep(1)
                     return
                   }
@@ -810,6 +853,19 @@ export default function OnboardingScreen({
               }
               onClick={() => {
                 if (step === 1) {
+                  if (onProfileNext) {
+                    onProfileNext(
+                      {
+                        gender,
+                        height,
+                        weight,
+                        goal,
+                      },
+                      routines,
+                    )
+                    return
+                  }
+
                   setStep(2)
                   setRoutineStage("focus")
                   return

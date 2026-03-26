@@ -2,18 +2,28 @@
 
 import { useEffect, useMemo, useState } from "react"
 import {
-  BODY_PARTS,
   DAY_META,
   MACHINE_CATEGORIES,
   MACHINES,
   SET_PRESETS,
+  createEmptyRoutineMap,
   createExerciseId,
+  formatBodyParts,
   getDayMeta,
   getGoalOption,
+  getPreferredMachineCategories,
+  getRoutineDayCardPreview,
+  getRoutineFocusHint,
+  getRoutineFocusLabel,
+  getRoutineFocusOptions,
   getTodayDayKey,
+  hasWorkoutBodyParts,
+  isRestDay,
+  toggleBodyPartSelection,
   type DayKey,
   type ExerciseDraft,
   type MachineCategoryKey,
+  type RoutineFocus,
   type RoutineMap,
   type UserProfile,
 } from "@/lib/app-config"
@@ -29,7 +39,7 @@ function isExerciseConfigured(exercise: ExerciseDraft) {
 function cloneRoutineMap(routines: RoutineMap): RoutineMap {
   return DAY_META.reduce((accumulator, day) => {
     accumulator[day.key] = {
-      bodyPart: routines[day.key].bodyPart,
+      bodyParts: [...routines[day.key].bodyParts],
       exercises: routines[day.key].exercises.map((exercise) => ({ ...exercise })),
     }
     return accumulator
@@ -40,7 +50,7 @@ function getInitialDay(routines: RoutineMap): DayKey {
   return (
     DAY_META.find((day) => {
       const routine = routines[day.key]
-      return routine.bodyPart && routine.bodyPart !== "휴식"
+      return hasWorkoutBodyParts(routine.bodyParts)
     })?.key ?? getTodayDayKey()
   )
 }
@@ -71,14 +81,17 @@ export default function RoutineEditorScreen({
   }, [routines])
 
   const goalOption = getGoalOption(profile.goal)
+  const routineFocusOptions = getRoutineFocusOptions(profile.goal)
+  const routineFocusLabel = getRoutineFocusLabel(profile.goal)
+  const routineFocusHint = getRoutineFocusHint(profile.goal)
   const selectedDayRoutine = draftRoutines[selectedDay]
   const selectedDayMeta = getDayMeta(selectedDay)
-  const selectedDayNeedsExercise =
-    Boolean(selectedDayRoutine.bodyPart) && selectedDayRoutine.bodyPart !== "휴식"
+  const selectedDayBodyPartLabel = formatBodyParts(selectedDayRoutine.bodyParts)
+  const selectedDayNeedsExercise = hasWorkoutBodyParts(selectedDayRoutine.bodyParts)
 
   const workingDays = DAY_META.filter((day) => {
     const routine = draftRoutines[day.key]
-    return routine.bodyPart && routine.bodyPart !== "휴식"
+    return hasWorkoutBodyParts(routine.bodyParts)
   })
   const completedRoutineDays = workingDays.filter((day) => {
     const routine = draftRoutines[day.key]
@@ -90,36 +103,23 @@ export default function RoutineEditorScreen({
   })
   const totalExercises = Object.values(draftRoutines).reduce((sum, routine) => sum + routine.exercises.length, 0)
 
-  const canGoExerciseStage = Boolean(selectedDayRoutine.bodyPart)
+  const canGoExerciseStage = selectedDayRoutine.bodyParts.length > 0
   const canGoDetailStage =
-    selectedDayRoutine.bodyPart === "휴식" ||
-    (selectedDayRoutine.bodyPart !== "" && selectedDayRoutine.exercises.length > 0)
+    isRestDay(selectedDayRoutine.bodyParts) || (selectedDayRoutine.bodyParts.length > 0 && selectedDayRoutine.exercises.length > 0)
   const canSave = workingDays.length > 0 && incompleteDays.length === 0
 
   const prioritizedMachines = useMemo(() => {
-    const bodyPartToCategory: Record<string, MachineCategoryKey> = {
-      "가슴": "chest",
-      "등": "back",
-      "하체": "legs",
-      "어깨": "shoulder",
-      "팔": "arms",
-      "유산소": "cardio",
-    }
-
     return MACHINES.filter((machine) => {
       const matchesSearch = machine.name.toLowerCase().includes(machineSearch.toLowerCase())
       const matchesCategory = machineCategory === "all" || machine.category === machineCategory
       return matchesSearch && matchesCategory
     }).sort((left, right) => {
-      const preferredCategory = selectedDayRoutine.bodyPart
-        ? bodyPartToCategory[selectedDayRoutine.bodyPart] ?? "all"
-        : "all"
-
-      const leftRank = preferredCategory !== "all" && left.category === preferredCategory ? 0 : 1
-      const rightRank = preferredCategory !== "all" && right.category === preferredCategory ? 0 : 1
+      const preferredCategories = getPreferredMachineCategories(selectedDayRoutine.bodyParts)
+      const leftRank = preferredCategories.includes(left.category) ? 0 : 1
+      const rightRank = preferredCategories.includes(right.category) ? 0 : 1
       return leftRank - rightRank
     })
-  }, [machineCategory, machineSearch, selectedDayRoutine.bodyPart])
+  }, [machineCategory, machineSearch, selectedDayRoutine.bodyParts])
 
   const initialSignature = useMemo(() => JSON.stringify(routines), [routines])
   const draftSignature = useMemo(() => JSON.stringify(draftRoutines), [draftRoutines])
@@ -139,13 +139,17 @@ export default function RoutineEditorScreen({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [isDirty])
 
-  const setBodyPart = (dayKey: DayKey, nextBodyPart: (typeof BODY_PARTS)[number]) => {
+  const toggleBodyPart = (dayKey: DayKey, nextBodyPart: RoutineFocus) => {
     setDraftRoutines((previous) => ({
       ...previous,
-      [dayKey]:
-        nextBodyPart === "휴식"
-          ? { bodyPart: nextBodyPart, exercises: [] }
-          : { ...previous[dayKey], bodyPart: nextBodyPart },
+      [dayKey]: (() => {
+        const nextBodyParts = toggleBodyPartSelection(previous[dayKey].bodyParts, nextBodyPart, routineFocusOptions)
+        if (isRestDay(nextBodyParts)) {
+          return { bodyParts: nextBodyParts, exercises: [] }
+        }
+
+        return { ...previous[dayKey], bodyParts: nextBodyParts }
+      })(),
     }))
   }
 
@@ -161,7 +165,7 @@ export default function RoutineEditorScreen({
     setDraftRoutines((previous) => ({
       ...previous,
       [dayKey]: {
-        bodyPart: previousRoutine.bodyPart,
+        bodyParts: [...previousRoutine.bodyParts],
         exercises: previousRoutine.exercises.map((exercise) => ({
           ...exercise,
           id: createExerciseId(dayKey, exercise.machineId),
@@ -171,12 +175,7 @@ export default function RoutineEditorScreen({
   }
 
   const resetAllDays = () => {
-    setDraftRoutines(
-      DAY_META.reduce((accumulator, day) => {
-        accumulator[day.key] = { bodyPart: "", exercises: [] }
-        return accumulator
-      }, {} as RoutineMap),
-    )
+    setDraftRoutines(createEmptyRoutineMap())
     setSelectedDay("mon")
     setRoutineStage("focus")
     setMachineSearch("")
@@ -245,10 +244,10 @@ export default function RoutineEditorScreen({
   const routineSummary =
     routineStage === "focus"
       ? canGoExerciseStage
-        ? `${selectedDayMeta.full} · ${selectedDayRoutine.bodyPart}`
-        : "선택한 요일의 운동 부위를 먼저 정해 주세요"
+        ? `${selectedDayMeta.full} · ${selectedDayBodyPartLabel}`
+        : `선택한 요일의 ${routineFocusLabel}을 먼저 정해 주세요`
       : routineStage === "exercise"
-        ? selectedDayRoutine.bodyPart === "휴식"
+        ? isRestDay(selectedDayRoutine.bodyParts)
           ? `${selectedDayMeta.full}은 휴식일입니다`
           : `${selectedDayRoutine.exercises.length}개 운동 선택됨`
         : canSave
@@ -344,22 +343,23 @@ export default function RoutineEditorScreen({
                 <p className="mt-1 text-[13px] text-[#4E5968]">{selectedDayMeta.full}</p>
               </div>
               <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
-                {selectedDayRoutine.bodyPart || "미설정"}
+                {selectedDayBodyPartLabel}
               </span>
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
               {DAY_META.map((day) => {
                 const routine = draftRoutines[day.key]
                 const isSelected = selectedDay === day.key
+                const dayPreview = getRoutineDayCardPreview(routine.bodyParts)
                 const isDone =
-                  Boolean(routine.bodyPart) &&
-                  (routine.bodyPart === "휴식" ||
+                  routine.bodyParts.length > 0 &&
+                  (isRestDay(routine.bodyParts) ||
                     (routine.exercises.length > 0 && routine.exercises.every(isExerciseConfigured)))
 
                 return (
                   <button
                     key={day.key}
-                    className={`flex min-w-[68px] flex-shrink-0 flex-col items-center gap-1 rounded-[18px] border px-3 py-3 transition-all ${
+                    className={`flex min-w-[74px] flex-shrink-0 flex-col items-center justify-between gap-2 rounded-[20px] border px-2.5 py-3 transition-all ${
                       isSelected
                         ? "border-[#3182F6] bg-[#EBF3FE] shadow-[0_12px_24px_-22px_rgba(49,130,246,0.9)]"
                         : "border-[#E5E8EB] bg-[#F8FAFC]"
@@ -370,14 +370,23 @@ export default function RoutineEditorScreen({
                     <span className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
                       {day.label}
                     </span>
-                    <span className={`text-[11px] ${isSelected ? "text-[#3182F6]" : "text-[#8B95A1]"}`}>
-                      {routine.bodyPart || "미설정"}
-                    </span>
-                    {isDone ? (
-                      <span className="rounded-full bg-[#3182F6] px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                        완료
+                    <div className="flex min-h-[34px] w-full flex-col items-center justify-center gap-1">
+                      <span
+                        className={`max-w-full truncate text-center text-[11px] font-semibold leading-none ${
+                          isSelected ? "text-[#3182F6]" : "text-[#6B7684]"
+                        }`}
+                      >
+                        {dayPreview.label}
                       </span>
-                    ) : null}
+                      {dayPreview.extraLabel ? (
+                        <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-[#6B7684] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+                          {dayPreview.extraLabel}
+                        </span>
+                      ) : (
+                        <span className="h-[14px]" />
+                      )}
+                    </div>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isDone ? "bg-[#2CB52C]" : "bg-[#D9DEE3]"}`} />
                   </button>
                 )
               })}
@@ -389,24 +398,24 @@ export default function RoutineEditorScreen({
               <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[12px] font-semibold text-[#8B95A1]">운동 부위</p>
-                    <p className="mt-1 text-[13px] text-[#4E5968]">먼저 해당 요일의 부위를 정합니다</p>
+                    <p className="text-[12px] font-semibold text-[#8B95A1]">{routineFocusLabel}</p>
+                    <p className="mt-1 text-[13px] text-[#4E5968]">{routineFocusHint}</p>
                   </div>
                   <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
-                    {selectedDayRoutine.bodyPart || "미설정"}
+                    {selectedDayBodyPartLabel}
                   </span>
                 </div>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  {BODY_PARTS.map((part) => (
+                  {routineFocusOptions.map((part) => (
                     <button
                       key={part}
                       className={`rounded-2xl border py-3 text-[13px] font-medium transition-colors ${
-                        selectedDayRoutine.bodyPart === part
+                        selectedDayRoutine.bodyParts.includes(part)
                           ? "border-[#3182F6] bg-[#EBF3FE] text-[#3182F6]"
                           : "border-[#E5E8EB] bg-[#FFFFFF] text-[#191F28]"
                       }`}
-                      onClick={() => setBodyPart(selectedDay, part)}
+                      onClick={() => toggleBodyPart(selectedDay, part)}
                       type="button"
                     >
                       {part}
@@ -450,7 +459,7 @@ export default function RoutineEditorScreen({
                         >
                           <div>
                             <p className="font-semibold text-[#191F28]">{day.full}</p>
-                            <p className="mt-1 text-[11px] text-[#8B95A1]">{routine.bodyPart}</p>
+                            <p className="mt-1 text-[11px] text-[#8B95A1]">{formatBodyParts(routine.bodyParts)}</p>
                           </div>
                           <span className="rounded-full bg-[#F8FAFC] px-2.5 py-1 text-[11px] font-semibold text-[#8B95A1]">
                             {routine.exercises.length}개
@@ -542,15 +551,15 @@ export default function RoutineEditorScreen({
                     </div>
                   )}
                 </div>
-              ) : selectedDayRoutine.bodyPart === "휴식" ? (
+              ) : isRestDay(selectedDayRoutine.bodyParts) ? (
                 <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-6 text-center">
                   <p className="text-[14px] font-semibold text-[#191F28]">{selectedDayMeta.full}은 휴식일입니다</p>
                   <p className="mt-2 text-[12px] text-[#8B95A1]">휴식일은 운동 선택 없이 넘어갈 수 있습니다</p>
                 </div>
               ) : (
                 <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-6 text-center">
-                  <p className="text-[14px] font-semibold text-[#191F28]">먼저 운동 부위를 선택해 주세요</p>
-                  <p className="mt-2 text-[12px] text-[#8B95A1]">부위를 고르면 추천 머신이 정렬되어 나옵니다</p>
+                  <p className="text-[14px] font-semibold text-[#191F28]">먼저 {routineFocusLabel}을 선택해 주세요</p>
+                  <p className="mt-2 text-[12px] text-[#8B95A1]">선택한 기준에 맞춰 추천 머신이 먼저 정렬됩니다</p>
                 </div>
               )}
 
@@ -597,7 +606,7 @@ export default function RoutineEditorScreen({
                     <div>
                       <p className="text-[12px] font-semibold text-[#8B95A1]">세트 입력</p>
                       <p className="mt-1 text-[13px] text-[#4E5968]">
-                        {selectedDayMeta.full} · {selectedDayRoutine.bodyPart}
+                        {selectedDayMeta.full} · {selectedDayBodyPartLabel}
                       </p>
                     </div>
                     <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
@@ -666,7 +675,7 @@ export default function RoutineEditorScreen({
                     ))}
                   </div>
                 </div>
-              ) : selectedDayRoutine.bodyPart === "휴식" ? (
+              ) : isRestDay(selectedDayRoutine.bodyParts) ? (
                 <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-6 text-center">
                   <p className="text-[14px] font-semibold text-[#191F28]">{selectedDayMeta.full}은 휴식일입니다</p>
                   <p className="mt-2 text-[12px] text-[#8B95A1]">휴식일은 세트 입력 없이 완료됩니다</p>
@@ -699,7 +708,7 @@ export default function RoutineEditorScreen({
                           <div>
                             <p className="font-semibold text-[#191F28]">{day.full}</p>
                             <p className="mt-1 text-[11px] text-[#8B95A1]">
-                              {routine.bodyPart} · 운동 {routine.exercises.length}개
+                              {formatBodyParts(routine.bodyParts)} · 운동 {routine.exercises.length}개
                             </p>
                           </div>
                           <span

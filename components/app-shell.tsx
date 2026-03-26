@@ -3,8 +3,10 @@
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import {
   DAY_META,
+  formatBodyParts,
   getGoalOption,
   getTodayDayKey,
+  hasWorkoutBodyParts,
   type ProteinState,
   type OnboardingData,
 } from "@/lib/app-config"
@@ -93,7 +95,7 @@ export default function AppShell({
   const goalOption = getGoalOption(profile.goal)
   const workingDays = DAY_META.filter((day) => {
     const routine = routines[day.key]
-    return routine.bodyPart && routine.bodyPart !== "휴식"
+    return hasWorkoutBodyParts(routine.bodyParts)
   })
   const totalExercises = Object.values(routines).reduce((sum, routine) => sum + routine.exercises.length, 0)
   const currentDate = new Intl.DateTimeFormat("ko-KR", {
@@ -105,29 +107,25 @@ export default function AppShell({
   const tabMeta = useMemo(
     () => ({
       "오늘": {
-        helper: todayRoutine.bodyPart
-          ? `${todayRoutine.bodyPart} 루틴 ${todayRoutine.exercises.length}개`
+        helper: hasWorkoutBodyParts(todayRoutine.bodyParts)
+          ? `${formatBodyParts(todayRoutine.bodyParts)} · 운동 ${todayRoutine.exercises.length}개`
           : "오늘 설정된 루틴이 없습니다",
-        chips: [
-          DAY_META.find((day) => day.key === todayKey)?.full ?? "오늘",
-          todayRoutine.bodyPart || "미설정",
-          `${profile.proteinTarget}g 목표`,
-        ],
+        status: currentDate,
       },
       "루틴": {
-        helper: "요일별 머신과 세트 계획",
-        chips: [`운동일 ${workingDays.length}일`, `운동 ${totalExercises}개`, goalOption.label],
+        helper: `운동일 ${workingDays.length}일 · 총 운동 ${totalExercises}개`,
+        status: "주간 계획 관리",
       },
       "잔디": {
         helper: "주간 흐름과 연속 기록",
-        chips: ["이번 주", "연속", "월간"],
+        status: "이번 달 요약",
       },
       "단백질": {
-        helper: `${goalOption.label} 기준 단백질 목표`,
-        chips: [`${profile.weight}kg`, `${profile.proteinTarget}g`, `${goalOption.proteinMultiplier}g/kg`],
+        helper: `${profile.weight}kg · 목표 ${profile.proteinTarget}g`,
+        status: goalOption.label,
       },
     }),
-    [goalOption, profile.proteinTarget, profile.weight, todayKey, todayRoutine.bodyPart, todayRoutine.exercises.length, totalExercises, workingDays.length],
+    [currentDate, goalOption.label, profile.proteinTarget, profile.weight, todayKey, todayRoutine.bodyParts, todayRoutine.exercises.length, totalExercises, workingDays.length],
   )
 
   const activeMeta = tabMeta[activeTab]
@@ -161,34 +159,19 @@ export default function AppShell({
       <header className="shrink-0 border-b border-[#E5E8EB] bg-[#FFFFFF] px-4 pt-safe-top">
         <div className="flex h-14 items-center justify-between">
           <BrandMark />
-          <div className="rounded-full bg-[#F2F4F6] px-3 py-1 text-[11px] font-semibold text-[#6B7684]">
-            {currentDate}
-          </div>
+          <span className="rounded-full bg-[#EBF3FE] px-3 py-1.5 text-[12px] font-semibold text-[#3182F6]">
+            {goalOption.label}
+          </span>
         </div>
         <div className="pb-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8B95A1]">Workspace</p>
-              <p className="mt-2 text-[22px] font-bold leading-none text-[#191F28]">{activeTab}</p>
-              <p className="mt-2 text-[13px] leading-5 text-[#8B95A1]">{activeMeta.helper}</p>
+          <div className="rounded-[22px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[22px] font-bold leading-none text-[#191F28]">{activeTab}</p>
+                <p className="mt-1.5 text-[13px] leading-5 text-[#4E5968]">{activeMeta.helper}</p>
+              </div>
+              <span className="shrink-0 text-[12px] font-semibold text-[#8B95A1]">{activeMeta.status}</span>
             </div>
-            <span className="rounded-full bg-[#EBF3FE] px-3 py-1.5 text-[12px] font-semibold text-[#3182F6]">
-              {goalOption.label}
-            </span>
-          </div>
-          <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
-            {activeMeta.chips.map((chip, index) => (
-              <span
-                key={chip}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium ${
-                  index === 0
-                    ? "bg-[#191F28] text-white"
-                    : "border border-[#E5E8EB] bg-[#F8FAFC] text-[#4E5968]"
-                }`}
-              >
-                {chip}
-              </span>
-            ))}
           </div>
         </div>
       </header>

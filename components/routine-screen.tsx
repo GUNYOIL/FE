@@ -1,6 +1,14 @@
 "use client"
 
-import { DAY_META, getTodayDayKey, type RoutineMap } from "@/lib/app-config"
+import {
+  DAY_META,
+  formatBodyParts,
+  getRoutineDayCardPreview,
+  getTodayDayKey,
+  hasWorkoutBodyParts,
+  isRestDay,
+  type RoutineMap,
+} from "@/lib/app-config"
 
 export default function RoutineScreen({
   onEdit,
@@ -12,8 +20,11 @@ export default function RoutineScreen({
   const todayKey = getTodayDayKey()
   const configuredDays = DAY_META.filter((day) => {
     const routine = routines[day.key]
-    return routine.bodyPart && routine.bodyPart !== "휴식"
+    return hasWorkoutBodyParts(routine.bodyParts)
   })
+  const focusDay =
+    DAY_META.find((day) => day.key === todayKey && hasWorkoutBodyParts(routines[day.key].bodyParts)) ?? configuredDays[0] ?? DAY_META[0]
+  const focusRoutine = routines[focusDay.key]
   const totalSets = configuredDays.reduce((sum, day) => {
     return sum + routines[day.key].exercises.reduce((exerciseSum, exercise) => exerciseSum + (Number(exercise.sets) || 0), 0)
   }, 0)
@@ -24,15 +35,31 @@ export default function RoutineScreen({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[20px] font-bold tracking-tight text-[#191F28]">주간 루틴</h2>
-            <p className="mt-0.5 text-[13px] text-[#8B95A1]">요일별 부위와 머신 설정</p>
+            <p className="mt-0.5 text-[13px] text-[#8B95A1]">가장 먼저 확인할 루틴부터 보여줍니다</p>
           </div>
-          <button
-            className="rounded-full bg-[#EBF3FE] px-3.5 py-2 text-[12px] font-semibold text-[#3182F6]"
-            onClick={onEdit}
-            type="button"
-          >
-            수정
-          </button>
+        </div>
+      </div>
+
+      <div className="px-4 mb-4">
+        <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-[#8B95A1]">{focusDay.key === todayKey ? "오늘 루틴" : "가장 먼저 볼 루틴"}</p>
+              <p className="mt-1 text-[20px] font-bold leading-none text-[#191F28]">{focusDay.full}</p>
+              <p className="mt-2 text-[13px] leading-5 text-[#4E5968]">
+                {hasWorkoutBodyParts(focusRoutine.bodyParts)
+                  ? `${formatBodyParts(focusRoutine.bodyParts)} · 운동 ${focusRoutine.exercises.length}개`
+                  : "아직 설정된 루틴이 없습니다"}
+              </p>
+            </div>
+            <button
+              className="rounded-full bg-[#EBF3FE] px-3.5 py-2 text-[12px] font-semibold text-[#3182F6]"
+              onClick={onEdit}
+              type="button"
+            >
+              루틴 수정
+            </button>
+          </div>
         </div>
       </div>
 
@@ -48,25 +75,40 @@ export default function RoutineScreen({
       </div>
 
       <div className="px-4 mb-4">
+        <p className="mb-2 text-[13px] font-semibold text-[#4E5968]">요일별 상태</p>
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {DAY_META.map((day) => {
             const routine = routines[day.key]
             const isToday = day.key === todayKey
-            const hasRoutine = Boolean(routine.bodyPart) && routine.bodyPart !== "휴식"
+            const hasRoutine = hasWorkoutBodyParts(routine.bodyParts)
+            const dayPreview = getRoutineDayCardPreview(routine.bodyParts)
 
             return (
               <div
                 key={day.key}
-                className={`flex w-[62px] flex-shrink-0 flex-col items-center gap-1 rounded-2xl border py-2.5 ${
+                className={`flex w-[74px] flex-shrink-0 flex-col items-center justify-between gap-2 rounded-[20px] px-2 py-3 ${
                   isToday ? "border-[#3182F6] bg-[#EBF3FE]" : "border-[#E5E8EB] bg-[#F8FAFC]"
                 }`}
               >
                 <span className={`text-[13px] font-semibold ${isToday ? "text-[#3182F6]" : "text-[#4E5968]"}`}>
                   {day.label}
                 </span>
-                <span className={`text-[11px] ${isToday ? "text-[#3182F6]" : "text-[#8B95A1]"}`}>
-                  {routine.bodyPart || "미설정"}
-                </span>
+                <div className="flex min-h-[34px] w-full flex-col items-center justify-center gap-1">
+                  <span
+                    className={`max-w-full truncate text-center text-[11px] font-semibold leading-none ${
+                      isToday ? "text-[#3182F6]" : "text-[#6B7684]"
+                    }`}
+                  >
+                    {dayPreview.label}
+                  </span>
+                  {dayPreview.extraLabel ? (
+                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-[#6B7684] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+                      {dayPreview.extraLabel}
+                    </span>
+                  ) : (
+                    <span className="h-[14px]" />
+                  )}
+                </div>
                 <span className={`h-1.5 w-1.5 rounded-full ${hasRoutine ? "bg-[#2CB52C]" : "bg-[#E5E8EB]"}`} />
               </div>
             )
@@ -78,8 +120,8 @@ export default function RoutineScreen({
         {DAY_META.map((day) => {
           const routine = routines[day.key]
           const isToday = day.key === todayKey
-          const isRest = routine.bodyPart === "휴식"
-          const isEmpty = !routine.bodyPart
+          const isRest = isRestDay(routine.bodyParts)
+          const isEmpty = routine.bodyParts.length === 0
 
           return (
             <div
@@ -98,7 +140,9 @@ export default function RoutineScreen({
                       오늘
                     </span>
                   ) : null}
-                  {routine.bodyPart ? <span className="text-[12px] text-[#4E5968]">{routine.bodyPart}</span> : null}
+                  {routine.bodyParts.length > 0 ? (
+                    <span className="text-[12px] text-[#4E5968]">{formatBodyParts(routine.bodyParts)}</span>
+                  ) : null}
                 </div>
                 {isEmpty || isRest ? (
                   <span className="rounded-full border border-[#E5E8EB] bg-[#FFFFFF] px-2.5 py-1 text-[12px] text-[#8B95A1]">
