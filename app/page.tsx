@@ -1,7 +1,5 @@
-import { VercelShell } from "@/components/vercel-shell";
-
-export const dynamic = "force-dynamic";
+import HomeRoute from "@/components/home-route"
 
 export default function HomePage() {
-  return <VercelShell />;
+  return <HomeRoute />
 }

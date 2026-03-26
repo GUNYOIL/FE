@@ -12,6 +12,7 @@ import {
   getDayMeta,
   getGoalOption,
   getPreferredMachineCategories,
+  getRoutineDayCardPreview,
   getRoutineFocusHint,
   getRoutineFocusLabel,
   getRoutineFocusOptions,
@@ -349,6 +350,7 @@ export default function RoutineEditorScreen({
               {DAY_META.map((day) => {
                 const routine = draftRoutines[day.key]
                 const isSelected = selectedDay === day.key
+                const dayPreview = getRoutineDayCardPreview(routine.bodyParts)
                 const isDone =
                   routine.bodyParts.length > 0 &&
                   (isRestDay(routine.bodyParts) ||
@@ -357,7 +359,7 @@ export default function RoutineEditorScreen({
                 return (
                   <button
                     key={day.key}
-                    className={`flex min-w-[68px] flex-shrink-0 flex-col items-center gap-1 rounded-[18px] border px-3 py-3 transition-all ${
+                    className={`flex min-w-[74px] flex-shrink-0 flex-col items-center justify-between gap-2 rounded-[20px] border px-2.5 py-3 transition-all ${
                       isSelected
                         ? "border-[#3182F6] bg-[#EBF3FE] shadow-[0_12px_24px_-22px_rgba(49,130,246,0.9)]"
                         : "border-[#E5E8EB] bg-[#F8FAFC]"
@@ -368,14 +370,23 @@ export default function RoutineEditorScreen({
                     <span className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
                       {day.label}
                     </span>
-                    <span className={`text-[11px] ${isSelected ? "text-[#3182F6]" : "text-[#8B95A1]"}`}>
-                      {formatBodyParts(routine.bodyParts)}
-                    </span>
-                    {isDone ? (
-                      <span className="rounded-full bg-[#3182F6] px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                        완료
+                    <div className="flex min-h-[34px] w-full flex-col items-center justify-center gap-1">
+                      <span
+                        className={`max-w-full truncate text-center text-[11px] font-semibold leading-none ${
+                          isSelected ? "text-[#3182F6]" : "text-[#6B7684]"
+                        }`}
+                      >
+                        {dayPreview.label}
                       </span>
-                    ) : null}
+                      {dayPreview.extraLabel ? (
+                        <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-[#6B7684] shadow-[inset_0_0_0_1px_rgba(229,232,235,1)]">
+                          {dayPreview.extraLabel}
+                        </span>
+                      ) : (
+                        <span className="h-[14px]" />
+                      )}
+                    </div>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isDone ? "bg-[#2CB52C]" : "bg-[#D9DEE3]"}`} />
                   </button>
                 )
               })}
