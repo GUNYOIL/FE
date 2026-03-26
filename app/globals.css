@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Pretendard Variable", "Pretendard", "SUIT Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-ui: "Pretendard Variable", "Pretendard", "SUIT Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-mono: "SFMono-Regular", "IBM Plex Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-ui);
+  color: #191f28;
+  background: #f2f4f6;
+  overscroll-behavior: none;
+}
+
+::selection {
+  color: #ffffff;
+  background: rgba(49, 130, 246, 0.92);
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-display);
+}
+
+@layer components {
+  .panel {
+    @apply rounded-[28px] border border-line bg-panel shadow-panel;
+  }
+
+  .panel-header {
+    @apply flex flex-col gap-2 border-b border-line/80 px-5 py-4 sm:px-6;
+  }
+
+  .eyebrow {
+    @apply text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-moss;
+  }
+
+  .panel-body {
+    @apply px-5 py-5 sm:px-6 sm:py-6;
+  }
+
+  .field {
+    @apply h-14 w-full rounded-[18px] border border-line bg-[#f9fafb] px-4 text-[15px] text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10;
+  }
+
+  .field::placeholder {
+    color: rgba(139, 149, 161, 0.9);
+  }
+
+  .label {
+    @apply mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-ember;
+  }
+
+  .primary-button {
+    @apply inline-flex h-12 items-center justify-center rounded-[18px] bg-moss px-5 text-sm font-semibold text-white transition hover:bg-leaf;
+  }
+
+  .secondary-button {
+    @apply inline-flex h-12 items-center justify-center rounded-[18px] border border-line bg-white px-5 text-sm font-semibold text-ink transition hover:border-[#b0b8c1] hover:bg-[#f9fafb];
+  }
+
+  .stat-card {
+    @apply rounded-[24px] border border-line bg-[#f8fafc] p-5;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .pt-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
