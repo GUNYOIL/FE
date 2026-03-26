@@ -1,10 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="128" fill="#173324"/>
-  <rect x="72" y="72" width="368" height="368" rx="88" fill="#F8F3EA"/>
-  <rect x="130" y="312" width="42" height="84" rx="20" fill="#D6DEC8"/>
-  <rect x="196" y="244" width="42" height="152" rx="20" fill="#9FB690"/>
-  <rect x="262" y="160" width="42" height="236" rx="20" fill="#5A865A"/>
-  <rect x="328" y="108" width="42" height="288" rx="20" fill="#2F6645"/>
-  <path d="M130 220C170 182 204 164 240 164C274 164 311 184 344 220C376 255 410 272 426 272" stroke="#BF6B3E" stroke-width="24" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 1024 1024" fill="none">
+  <rect width="1024" height="1024" rx="224" fill="#FFFFFF" />
+  <rect x="314" y="126" width="84" height="106" rx="32" ry="32" fill="#27B45D" />
+  <rect x="626" y="126" width="84" height="106" rx="32" ry="32" fill="#27B45D" />
+  <defs>
+    <clipPath id="icon512-body-clip">
+      <rect x="192" y="240" width="640" height="640" rx="168" ry="168" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#icon512-body-clip)">
+    <rect x="192" y="240" width="320" height="640" fill="#93E0AE" />
+    <rect x="512" y="240" width="320" height="640" fill="#47C371" />
+    <rect x="192" y="240" width="640" height="108" fill="#D9F5E1" opacity="0.32" />
+    <circle cx="374" cy="546" r="108" fill="#70D594" opacity="0.55" />
+    <circle cx="650" cy="546" r="108" fill="#15A75A" opacity="0.62" />
+    <circle cx="512" cy="542" r="94" fill="#BDF0CB" opacity="0.25" />
+    <rect x="428" y="504" width="168" height="84" rx="42" ry="42" fill="#1C7A49" opacity="0.68" />
+  </g>
 </svg>
-
