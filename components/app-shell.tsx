@@ -12,6 +12,7 @@ import {
 } from "@/lib/app-config"
 import BrandMark from "./brand-mark"
 import GrassScreen from "./grass-screen"
+import PwaInstallPrompt from "./pwa-install-prompt"
 import ProteinScreen from "./protein-screen"
 import RoutineEditorScreen from "./routine-editor-screen"
 import RoutineScreen from "./routine-screen"
@@ -110,22 +111,18 @@ export default function AppShell({
         helper: hasWorkoutBodyParts(todayRoutine.bodyParts)
           ? `${formatBodyParts(todayRoutine.bodyParts)} · 운동 ${todayRoutine.exercises.length}개`
           : "오늘 설정된 루틴이 없습니다",
-        status: currentDate,
       },
       "루틴": {
         helper: `운동일 ${workingDays.length}일 · 총 운동 ${totalExercises}개`,
-        status: "주간 계획 관리",
       },
       "잔디": {
         helper: "주간 흐름과 연속 기록",
-        status: "이번 달 요약",
       },
       "단백질": {
         helper: `${profile.weight}kg · 목표 ${profile.proteinTarget}g`,
-        status: goalOption.label,
       },
     }),
-    [currentDate, goalOption.label, profile.proteinTarget, profile.weight, todayKey, todayRoutine.bodyParts, todayRoutine.exercises.length, totalExercises, workingDays.length],
+    [profile.proteinTarget, profile.weight, todayKey, todayRoutine.bodyParts, todayRoutine.exercises.length, totalExercises, workingDays.length],
   )
 
   const activeMeta = tabMeta[activeTab]
@@ -149,34 +146,27 @@ export default function AppShell({
 
   return (
     <div
-      className="flex flex-col bg-[#F2F4F6]"
+      className="flex flex-col bg-[#FFFFFF]"
       style={{
         height: "100svh",
         margin: "0 auto",
         maxWidth: 480,
       }}
     >
-      <header className="shrink-0 border-b border-[#E5E8EB] bg-[#FFFFFF] px-4 pt-safe-top">
+      <header className="shrink-0 border-b border-[#EEF1F4] bg-[rgba(255,255,255,0.94)] px-4 pt-safe-top backdrop-blur">
         <div className="flex h-14 items-center justify-between">
-          <BrandMark />
-          <span className="rounded-full bg-[#EBF3FE] px-3 py-1.5 text-[12px] font-semibold text-[#3182F6]">
-            {goalOption.label}
-          </span>
-        </div>
-        <div className="pb-4">
-          <div className="rounded-[22px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[22px] font-bold leading-none text-[#191F28]">{activeTab}</p>
-                <p className="mt-1.5 text-[13px] leading-5 text-[#4E5968]">{activeMeta.helper}</p>
-              </div>
-              <span className="shrink-0 text-[12px] font-semibold text-[#8B95A1]">{activeMeta.status}</span>
-            </div>
+          <BrandMark iconClassName="h-7 w-7 rounded-[10px]" textClassName="text-[18px] font-bold text-[#191F28]" />
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-[#8B95A1]">{currentDate}</span>
+            <span className="rounded-full bg-[#F2F4F6] px-3 py-1.5 text-[12px] font-semibold text-[#4E5968]">
+              {goalOption.label}
+            </span>
           </div>
         </div>
+        <p className="pb-3 text-[12px] leading-5 text-[#8B95A1]">{activeMeta.helper}</p>
       </header>
 
-      <main className="relative flex-1 overflow-hidden">
+      <main className="relative flex-1 overflow-hidden bg-[#F7F8FA]">
         <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
           {activeTab === "오늘" ? <TodayScreen routines={routines} /> : null}
           {activeTab === "루틴" ? <RoutineScreen onEdit={() => setIsRoutineEditing(true)} routines={routines} /> : null}
@@ -187,28 +177,25 @@ export default function AppShell({
         </div>
       </main>
 
-      <div className="shrink-0 bg-[#F2F4F6] px-3 pb-safe-bottom pt-2">
-        <nav
-          className="flex rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-2 shadow-[0_18px_28px_-24px_rgba(15,23,42,0.32)]"
-          style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
-        >
+      <PwaInstallPrompt />
+
+      <div className="shrink-0 border-t border-[#EEF1F4] bg-[rgba(255,255,255,0.96)] px-2 pb-safe-bottom pt-1 backdrop-blur">
+        <nav className="grid grid-cols-4" style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom, 0px))" }}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id
 
             return (
               <button
                 key={tab.id}
-                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-[18px] py-3 transition-all ${
-                  isActive ? "bg-[#EBF3FE]" : ""
-                }`}
+                className="flex flex-col items-center justify-center gap-1 py-2.5 transition-all"
                 onClick={() => setActiveTab(tab.id)}
                 type="button"
               >
+                <span className={`h-1 w-8 rounded-full ${isActive ? "bg-[#3182F6]" : "bg-transparent"}`} />
                 <span className={isActive ? "text-[#3182F6]" : "text-[#8B95A1]"}>{tab.icon}</span>
                 <span className={`text-[11px] font-semibold ${isActive ? "text-[#3182F6]" : "text-[#8B95A1]"}`}>
                   {tab.label}
                 </span>
-                <span className={`h-1 w-8 rounded-full ${isActive ? "bg-[#3182F6]" : "bg-transparent"}`} />
               </button>
             )
           })}

@@ -8,21 +8,50 @@ export function PwaRegister() {
       return;
     }
 
-    const resetServiceWorker = async () => {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(
-        registrations.map((registration) => registration.unregister().catch(() => false)),
-      );
+    let isCancelled = false;
 
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((key) => caches.delete(key)));
+    const registerServiceWorker = async () => {
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js", {
+          scope: "/",
+          updateViaCache: "none",
+        });
+
+        if (isCancelled) {
+          return;
+        }
+
+        await registration.update().catch(() => {
+          return undefined;
+        });
+
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+
+        registration.addEventListener("updatefound", () => {
+          const installingWorker = registration.installing;
+
+          if (!installingWorker) {
+            return;
+          }
+
+          installingWorker.addEventListener("statechange", () => {
+            if (installingWorker.state === "installed" && registration.waiting) {
+              registration.waiting.postMessage({ type: "SKIP_WAITING" });
+            }
+          });
+        });
+      } catch {
+        return undefined;
       }
     };
 
-    resetServiceWorker().catch(() => {
-      return undefined;
-    });
+    registerServiceWorker();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   return null;

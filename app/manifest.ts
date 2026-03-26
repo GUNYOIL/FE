@@ -4,11 +4,13 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "근요일",
     short_name: "근요일",
-    description: "학생용 운동 루틴, 잔디, 단백질 관리 서비스",
+    description: "교내 헬스장 환경에 맞춘 운동 루틴, 기록, 단백질 관리 앱",
+    id: "/",
     start_url: "/",
     display: "standalone",
-    background_color: "#f2ede4",
-    theme_color: "#2f6645",
+    display_override: ["window-controls-overlay", "standalone", "browser"],
+    background_color: "#ffffff",
+    theme_color: "#3182f6",
     orientation: "portrait",
     icons: [
       {
@@ -29,7 +31,12 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/svg+xml",
         purpose: "any",
       },
+      {
+        src: "/geunyoil_mark.svg",
+        sizes: "1024x1024",
+        type: "image/svg+xml",
+        purpose: "maskable",
+      },
     ],
   };
 }
-
