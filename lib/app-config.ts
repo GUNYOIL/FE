@@ -147,7 +147,7 @@ export const MACHINES = [
   { id: "cable-crunch", name: "케이블 크런치", category: "core", muscle: "복근" },
   { id: "hanging-leg-raise", name: "행잉 레그 레이즈", category: "core", muscle: "복근/고관절" },
   { id: "weighted-sit-up", name: "웨이티드 싯업", category: "core", muscle: "복근" },
-  { id: "ab-wheel", name: "아브 휠 롤아웃", category: "core", muscle: "복근/코어" },
+  { id: "ab-wheel", name: "ab 휠 아웃", category: "core", muscle: "복근/코어" },
   { id: "treadmill", name: "런닝머신", category: "cardio", muscle: "전신" },
   { id: "cycle", name: "사이클", category: "cardio", muscle: "하체/심폐" },
   { id: "elliptical", name: "일립티컬", category: "cardio", muscle: "전신" },
@@ -171,7 +171,7 @@ export type ExerciseMetricFieldDefinition = {
 
 export type ExerciseMetricProfile = {
   trackingMode: "setBased" | "singleSession"
-  fields: readonly [ExerciseMetricFieldDefinition, ExerciseMetricFieldDefinition, ExerciseMetricFieldDefinition]
+  fields: readonly ExerciseMetricFieldDefinition[]
   presetValues?: readonly { label: string; values: Partial<Record<ExerciseField, string>> }[]
 }
 
@@ -323,6 +323,37 @@ const STRENGTH_PROFILE: ExerciseMetricProfile = {
   })),
 }
 
+const BODYWEIGHT_PROFILE: ExerciseMetricProfile = {
+  trackingMode: "setBased",
+  fields: [
+    { field: "reps", label: "횟수", unit: "회", placeholder: "0" },
+    { field: "sets", label: "세트", unit: "세트", placeholder: "0" },
+  ],
+  presetValues: SET_PRESETS.map((preset) => ({
+    label: preset.label,
+    values: {
+      reps: preset.reps,
+      sets: preset.sets,
+    },
+  })),
+}
+
+const ASSISTANCE_PROFILE: ExerciseMetricProfile = {
+  trackingMode: "setBased",
+  fields: [
+    { field: "weight", label: "보조무게", unit: "kg", placeholder: "0" },
+    { field: "reps", label: "횟수", unit: "회", placeholder: "0" },
+    { field: "sets", label: "세트", unit: "세트", placeholder: "0" },
+  ],
+  presetValues: SET_PRESETS.map((preset) => ({
+    label: preset.label,
+    values: {
+      reps: preset.reps,
+      sets: preset.sets,
+    },
+  })),
+}
+
 const TREADMILL_PROFILE: ExerciseMetricProfile = {
   trackingMode: "singleSession",
   fields: [
@@ -360,6 +391,13 @@ const ROWING_PROFILE: ExerciseMetricProfile = {
 }
 
 const EXERCISE_METRIC_PROFILE_MAP: Partial<Record<MachineId, ExerciseMetricProfile>> = {
+  "assisted-pullup": ASSISTANCE_PROFILE,
+  "dip-machine": ASSISTANCE_PROFILE,
+  "pull-up": BODYWEIGHT_PROFILE,
+  "chin-up": BODYWEIGHT_PROFILE,
+  "back-extension": BODYWEIGHT_PROFILE,
+  "hanging-leg-raise": BODYWEIGHT_PROFILE,
+  "ab-wheel": BODYWEIGHT_PROFILE,
   treadmill: TREADMILL_PROFILE,
   cycle: CYCLE_PROFILE,
   elliptical: ELLIPTICAL_PROFILE,
@@ -672,7 +710,7 @@ export function formatExerciseMetricSummary(
 
 export function getExerciseMetricHint(machineId: string) {
   const profile = getExerciseMetricProfile(machineId)
-  return `${profile.fields.map((field) => field.label).join(", ")}을 모두 입력해 주세요`
+  return `${profile.fields.map((field) => field.label).join(", ")} 항목을 입력해 주세요`
 }
 
 export function getRoutineFocusOptions(goal: GoalKey): readonly RoutineFocus[] {
@@ -808,6 +846,10 @@ export function getPreferredMachineCategories(bodyParts: RoutineFocus[]): Machin
     })
     return accumulator
   }, [])
+}
+
+export function getPrimaryMachineCategory(bodyParts: RoutineFocus[]): MachineCategoryKey {
+  return getPreferredMachineCategories(bodyParts)[0] ?? "all"
 }
 
 function normalizeBodyParts(value: unknown): RoutineFocus[] {

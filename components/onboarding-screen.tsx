@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   DAY_META,
   GOAL_OPTIONS,
@@ -18,6 +18,7 @@ import {
   getExerciseMetricProfile,
   getGoalOption,
   getMachineVisualLabel,
+  getPrimaryMachineCategory,
   getPreferredMachineCategories,
   getRoutineDayCardPreview,
   getRoutineFocusHint,
@@ -74,7 +75,9 @@ export default function OnboardingScreen({
   const [routines, setRoutines] = useState<RoutineMap>(initialRoutines ?? createEmptyRoutineMap())
   const [selectedDay, setSelectedDay] = useState<DayKey>("mon")
   const [machineSearch, setMachineSearch] = useState("")
-  const [machineCategory, setMachineCategory] = useState<MachineCategoryKey>("all")
+  const [machineCategory, setMachineCategory] = useState<MachineCategoryKey>(() =>
+    getPrimaryMachineCategory((initialRoutines ?? createEmptyRoutineMap()).mon.bodyParts),
+  )
 
   const numericWeight = Number(weight)
   const proteinTarget = calculateProteinTarget(numericWeight, goal)
@@ -111,6 +114,14 @@ export default function OnboardingScreen({
       return leftRank - rightRank
     })
   }, [machineCategory, machineSearch, selectedDayRoutine.bodyParts])
+
+  useEffect(() => {
+    if (routineStage !== "exercise") {
+      return
+    }
+
+    setMachineCategory(getPrimaryMachineCategory(selectedDayRoutine.bodyParts))
+  }, [routineStage, selectedDay, selectedDayRoutine.bodyParts])
 
   const toggleBodyPart = (dayKey: DayKey, nextBodyPart: RoutineFocus) => {
     setRoutines((previous) => ({

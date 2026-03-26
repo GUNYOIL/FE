@@ -16,6 +16,7 @@ import {
   getExerciseMetricProfile,
   getGoalOption,
   getMachineVisualLabel,
+  getPrimaryMachineCategory,
   getPreferredMachineCategories,
   getRoutineDayCardPreview,
   getRoutineFocusHint,
@@ -79,11 +80,12 @@ export default function RoutineEditorScreen({
   const [machineCategory, setMachineCategory] = useState<MachineCategoryKey>("all")
 
   useEffect(() => {
+    const initialDay = getInitialDay(routines)
     setDraftRoutines(cloneRoutineMap(routines))
-    setSelectedDay(getInitialDay(routines))
+    setSelectedDay(initialDay)
     setRoutineStage("focus")
     setMachineSearch("")
-    setMachineCategory("all")
+    setMachineCategory(getPrimaryMachineCategory(routines[initialDay].bodyParts))
   }, [routines])
 
   const goalOption = getGoalOption(profile.goal)
@@ -177,6 +179,14 @@ export default function RoutineEditorScreen({
       return leftRank - rightRank
     })
   }, [machineCategory, machineSearch, selectedDayRoutine.bodyParts])
+
+  useEffect(() => {
+    if (routineStage !== "exercise") {
+      return
+    }
+
+    setMachineCategory(getPrimaryMachineCategory(selectedDayRoutine.bodyParts))
+  }, [routineStage, selectedDay, selectedDayRoutine.bodyParts])
 
   const initialSignature = useMemo(() => JSON.stringify(routines), [routines])
   const draftSignature = useMemo(() => JSON.stringify(draftRoutines), [draftRoutines])
