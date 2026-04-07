@@ -42,6 +42,23 @@ function parseResponseBody(text: string) {
   }
 }
 
+function unwrapSuccessEnvelope(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload
+  }
+
+  const candidate = payload as Record<string, unknown>
+  const hasData = Object.prototype.hasOwnProperty.call(candidate, "data")
+  const hasSuccessFlag = typeof candidate.success === "boolean"
+  const hasMessage = typeof candidate.message === "string"
+
+  if (hasData && (hasSuccessFlag || hasMessage)) {
+    return candidate.data
+  }
+
+  return payload
+}
+
 function collectErrorMessages(value: unknown): string[] {
   if (!value) {
     return []
@@ -99,7 +116,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiError(response.status, payload, getApiErrorMessage(payload, "요청 처리에 실패했습니다."))
   }
 
-  return payload as T
+  return unwrapSuccessEnvelope(payload) as T
 }
 
 export function getReadableApiError(error: unknown, fallback = "요청 처리 중 오류가 발생했습니다.") {
