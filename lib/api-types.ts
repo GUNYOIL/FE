@@ -135,6 +135,43 @@ export type ApiProteinLogCreate = {
   note?: string
 }
 
+export type ApiWorkoutSet = {
+  id: number
+  exercise: number
+  exercise_name: string
+  set_number: number
+  weight: number
+  reps: number
+  is_completed: boolean
+}
+
+export type ApiWorkoutSetWrite = {
+  exercise: number
+  set_number: number
+  weight: number
+  reps: number
+  is_completed: boolean
+}
+
+export type ApiTodayLog = {
+  id: number
+  date: string
+  is_completed: boolean
+  sets: ApiWorkoutSet[]
+}
+
+export type ApiWorkoutSetUpdate = {
+  set_id: number
+  weight: number
+  reps: number
+  is_completed: boolean
+}
+
+export type ApiTodayWorkoutSync = {
+  is_completed: boolean
+  sets?: ApiWorkoutSetWrite[]
+}
+
 export type ApiSchoolMealSelectionItemWrite = {
   menu_name: string
   selection: ApiSchoolMealSelection

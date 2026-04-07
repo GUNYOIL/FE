@@ -4,6 +4,7 @@ import {
   calculateProteinTarget,
   createEmptyRoutineMap,
   createExerciseId,
+  getExerciseMetricDefaultValues,
   isExerciseConfigured,
   type DayKey,
   type OnboardingData,
@@ -11,6 +12,7 @@ import {
   type RoutineMap,
   type UserProfile,
 } from "@/lib/app-config"
+import { findMachineByExerciseName, getMachineNameCandidates, normalizeExerciseName } from "@/lib/exercise-name-matcher"
 import type { OnboardingProfileDraft } from "@/lib/session"
 import type { ApiExercise, ApiExerciseCategory, ApiGender, ApiRoutine, ApiRoutineWrite, ApiUser } from "@/lib/api-types"
 
@@ -48,10 +50,15 @@ const PRIMARY_FOCUS_BY_CATEGORY: Record<ApiExerciseCategory, RoutineFocus> = {
   ABS: "복근",
   CARDIO: "유산소",
 }
-
-function normalizeExerciseName(value: string) {
-  return value.replace(/[^0-9A-Za-z가-힣]/g, "").toLowerCase()
-}
+const API_CATEGORY_BY_MACHINE_CATEGORY = {
+  chest: "CHEST",
+  back: "BACK",
+  legs: "LEGS",
+  shoulder: "SHOULDERS",
+  arms: "ARMS",
+  core: "ABS",
+  cardio: "CARDIO",
+} satisfies Record<(typeof MACHINES)[number]["category"], ApiExerciseCategory>
 
 function isGoalKey(value: string | null | undefined): value is UserProfile["goal"] {
   return GOAL_OPTIONS.some((option) => option.key === value)
@@ -62,7 +69,7 @@ function toSafeNumber(value: number | null | undefined) {
 }
 
 function getMachineIdFromExercise(exercise: ApiExercise) {
-  const matchedMachine = MACHINES.find((machine) => normalizeExerciseName(machine.name) === normalizeExerciseName(exercise.name))
+  const matchedMachine = findMachineByExerciseName(exercise.name)
   return matchedMachine?.id ?? `exercise-${exercise.id}`
 }
 
@@ -83,6 +90,95 @@ export function createExerciseCatalogIndex(exercises: ApiExercise[]): ExerciseCa
       byNormalizedName: new Map<string, ApiExercise>(),
     },
   )
+}
+
+function longestCommonSubstringLength(left: string, right: string) {
+  if (!left || !right) {
+    return 0
+  }
+
+  let best = 0
+  const table = Array.from({ length: left.length + 1 }, () => Array<number>(right.length + 1).fill(0))
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      if (left[leftIndex - 1] !== right[rightIndex - 1]) {
+        continue
+      }
+
+      table[leftIndex][rightIndex] = table[leftIndex - 1][rightIndex - 1] + 1
+      best = Math.max(best, table[leftIndex][rightIndex])
+    }
+  }
+
+  return best
+}
+
+function scoreExerciseNameMatch(candidates: string[], normalizedCatalogName: string) {
+  let bestScore = 0
+
+  for (const candidate of candidates) {
+    if (candidate === normalizedCatalogName) {
+      return 1
+    }
+
+    if (candidate.includes(normalizedCatalogName) || normalizedCatalogName.includes(candidate)) {
+      bestScore = Math.max(bestScore, Math.min(candidate.length, normalizedCatalogName.length) / Math.max(candidate.length, normalizedCatalogName.length))
+      continue
+    }
+
+    const sharedLength = longestCommonSubstringLength(candidate, normalizedCatalogName)
+    if (sharedLength > 0) {
+      bestScore = Math.max(bestScore, sharedLength / Math.max(candidate.length, normalizedCatalogName.length))
+    }
+  }
+
+  return bestScore
+}
+
+function findCatalogExercise(catalogIndex: ExerciseCatalogIndex, machineId: string, machineName: string) {
+  const directExerciseId = getExerciseIdFromMachine(machineId)
+
+  if (directExerciseId !== null) {
+    return catalogIndex.byId.get(directExerciseId) ?? null
+  }
+
+  const normalizedCandidates = getMachineNameCandidates(machineId, machineName).map(normalizeExerciseName)
+
+  for (const candidate of normalizedCandidates) {
+    const matchedByName = catalogIndex.byNormalizedName.get(candidate)
+    if (matchedByName) {
+      return matchedByName
+    }
+  }
+
+  const machine = MACHINES.find((item) => item.id === machineId)
+  const expectedCategory = machine ? API_CATEGORY_BY_MACHINE_CATEGORY[machine.category] : null
+  let bestMatch: { exercise: ApiExercise; score: number } | null = null
+
+  for (const catalogExercise of catalogIndex.byId.values()) {
+    if (expectedCategory && catalogExercise.category !== expectedCategory) {
+      continue
+    }
+
+    const score = scoreExerciseNameMatch(normalizedCandidates, normalizeExerciseName(catalogExercise.name))
+    if (score < 0.55) {
+      continue
+    }
+
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = {
+        exercise: catalogExercise,
+        score,
+      }
+    }
+  }
+
+  return bestMatch?.exercise ?? null
+}
+
+export function matchCatalogExercise(exercises: ApiExercise[], machineId: string, machineName: string) {
+  return findCatalogExercise(createExerciseCatalogIndex(exercises), machineId, machineName)
 }
 
 export function mapDraftGenderToApi(gender: OnboardingProfileDraft["gender"]): ApiGender {
@@ -218,23 +314,24 @@ export function routineMapToApiPayload(routines: RoutineMap, catalog: ApiExercis
     details: routine.exercises
       .filter(isExerciseConfigured)
       .flatMap((exercise, index) => {
-        const directExerciseId = getExerciseIdFromMachine(exercise.machineId)
-        const matchedExercise =
-          directExerciseId !== null
-            ? catalogIndex.byId.get(directExerciseId)
-            : catalogIndex.byNormalizedName.get(normalizeExerciseName(exercise.machineName))
+        const matchedExercise = findCatalogExercise(catalogIndex, exercise.machineId, exercise.machineName)
 
         if (!matchedExercise) {
           unresolvedExercises.add(exercise.machineName)
           return []
         }
 
+        const defaultValues = getExerciseMetricDefaultValues(exercise.machineId)
+        const targetWeight = Number(exercise.weight || defaultValues.weight) || 0
+        const targetReps = Number(exercise.reps || defaultValues.reps) || 0
+        const targetSets = Number(exercise.sets || defaultValues.sets) || 0
+
         return [
           {
             exercise: matchedExercise.id,
-            target_weight: Number(exercise.weight) || 0,
-            target_reps: Number(exercise.reps) || 0,
-            target_sets: Number(exercise.sets) || 0,
+            target_weight: targetWeight,
+            target_reps: targetReps,
+            target_sets: targetSets,
             order: index + 1,
           },
         ]
