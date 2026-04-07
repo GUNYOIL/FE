@@ -56,6 +56,7 @@ export type ApiRoutineWrite = {
 export type ApiGrassEntry = {
   date: string
   is_completed: boolean
+  completion_percent: number
 }
 
 export type ApiProteinLogType = "quick" | "manual" | "meal" | "supplement"

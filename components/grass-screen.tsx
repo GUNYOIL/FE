@@ -4,12 +4,15 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchMyGrass } from "@/lib/api"
 import { getReadableApiError } from "@/lib/api-client"
+import type { ApiGrassEntry } from "@/lib/api-types"
 import { GrassScreenSkeleton } from "./loading-skeletons"
 
 type DayData = {
   date: number
   fullDate: string
   pct: number
+  hasRecord: boolean
+  isCompleted: boolean
 }
 
 function getGrassColor(pct: number) {
@@ -35,8 +38,42 @@ function formatMonthLabel(date: Date) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월`
 }
 
-function buildMonthCells(entries: Array<{ date: string; is_completed: boolean }>, monthDate: Date) {
-  const entryMap = new Map(entries.map((entry) => [entry.date, entry.is_completed]))
+function normalizeCompletionPercent(value: unknown) {
+  const parsed = Number(value)
+
+  if (!Number.isFinite(parsed)) {
+    return 0
+  }
+
+  return Math.max(0, Math.min(100, Math.round(parsed)))
+}
+
+function getDayStatus(pct: number, isCompleted: boolean, hasRecord: boolean) {
+  if (isCompleted || pct >= 100) {
+    return {
+      label: "완료",
+      badgeClassName: "border border-[#B8EFB8] bg-[#F6FFF6] text-[#2CB52C]",
+      detailLabel: "운동 완료",
+    }
+  }
+
+  if (hasRecord && pct > 0) {
+    return {
+      label: "진행 중",
+      badgeClassName: "border border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
+      detailLabel: "운동 진행 중",
+    }
+  }
+
+  return {
+    label: "미기록",
+    badgeClassName: "border border-[#E5E8EB] bg-[#FFFFFF] text-[#8B95A1]",
+    detailLabel: "기록 없음",
+  }
+}
+
+function buildMonthCells(entries: ApiGrassEntry[], monthDate: Date) {
+  const entryMap = new Map(entries.map((entry) => [entry.date, entry]))
   const year = monthDate.getFullYear()
   const month = monthDate.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -49,17 +86,21 @@ function buildMonthCells(entries: Array<{ date: string; is_completed: boolean }>
 
   for (let day = 1; day <= daysInMonth; day += 1) {
     const fullDate = toLocalDateKey(new Date(year, month, day))
+    const entry = entryMap.get(fullDate)
+
     cells.push({
       date: day,
       fullDate,
-      pct: entryMap.get(fullDate) ? 100 : 0,
+      pct: normalizeCompletionPercent(entry?.completion_percent),
+      hasRecord: Boolean(entry),
+      isCompleted: Boolean(entry?.is_completed),
     })
   }
 
   return cells
 }
 
-function calculateStreak(entries: Array<{ date: string; is_completed: boolean }>) {
+function calculateStreak(entries: ApiGrassEntry[]) {
   const completed = new Set(entries.filter((entry) => entry.is_completed).map((entry) => entry.date))
   let streak = 0
   const cursor = new Date()
@@ -97,6 +138,7 @@ export default function GrassScreen({ token }: { token: string | null }) {
   }
 
   const monthDate = useMemo(() => new Date(), [])
+  const daysInMonth = useMemo(() => new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate(), [monthDate])
   const monthEntries = useMemo(
     () =>
       grassEntries
@@ -110,10 +152,15 @@ export default function GrassScreen({ token }: { token: string | null }) {
   const cells = useMemo(() => buildMonthCells(monthEntries, monthDate), [monthEntries, monthDate])
   const selectedDay = cells.find((cell): cell is DayData => Boolean(cell && cell.fullDate === selectedDateKey))
   const completedEntries = monthEntries.filter((entry) => entry.is_completed)
+  const recordedEntries = [...monthEntries]
+    .filter((entry) => normalizeCompletionPercent(entry.completion_percent) > 0)
+    .reverse()
+    .slice(0, 5)
   const workoutCount = completedEntries.length
-  const avgPct = Math.round((workoutCount / new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate()) * 100)
+  const avgPct = Math.round(
+    monthEntries.reduce((sum, entry) => sum + normalizeCompletionPercent(entry.completion_percent), 0) / daysInMonth,
+  )
   const streak = calculateStreak(grassEntries)
-  const recentEntries = [...completedEntries].reverse().slice(0, 5)
   const weekDayLabels = ["월", "화", "수", "목", "금", "토", "일"]
 
   if (isLoading) {
@@ -204,19 +251,18 @@ export default function GrassScreen({ token }: { token: string | null }) {
                 {monthDate.getMonth() + 1}월 {selectedDay.date}일
               </span>
               <span
-                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${
-                  selectedDay.pct > 0
-                    ? "border border-[#B8EFB8] bg-[#F6FFF6] text-[#2CB52C]"
-                    : "border border-[#E5E8EB] bg-[#FFFFFF] text-[#8B95A1]"
-                }`}
+                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${getDayStatus(selectedDay.pct, selectedDay.isCompleted, selectedDay.hasRecord).badgeClassName}`}
               >
-                {selectedDay.pct > 0 ? "완료" : "미기록"}
+                {getDayStatus(selectedDay.pct, selectedDay.isCompleted, selectedDay.hasRecord).label}
               </span>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "상태", value: selectedDay.pct > 0 ? "운동 완료" : "기록 없음" },
+                {
+                  label: "상태",
+                  value: getDayStatus(selectedDay.pct, selectedDay.isCompleted, selectedDay.hasRecord).detailLabel,
+                },
                 { label: "달성률", value: `${selectedDay.pct}%` },
                 { label: "날짜", value: `${selectedDay.date}일` },
               ].map((item) => (
@@ -231,17 +277,19 @@ export default function GrassScreen({ token }: { token: string | null }) {
       ) : null}
 
       <div className="px-4 mb-6">
-        <p className="mb-2 text-[13px] font-semibold text-[#4E5968]">최근 완료 기록</p>
-        {recentEntries.length === 0 ? (
+        <p className="mb-2 text-[13px] font-semibold text-[#4E5968]">최근 운동 기록</p>
+        {recordedEntries.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#E5E8EB] py-8 text-center">
-            <p className="text-[13px] font-medium text-[#191F28]">아직 완료 기록이 없습니다</p>
-            <p className="mt-1 text-[12px] text-[#8B95A1]">오늘 운동을 완료하면 잔디가 채워집니다</p>
+            <p className="text-[13px] font-medium text-[#191F28]">아직 운동 기록이 없습니다</p>
+            <p className="mt-1 text-[12px] text-[#8B95A1]">오늘 운동을 저장하면 잔디가 채워집니다</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {recentEntries.map((entry) => {
+            {recordedEntries.map((entry) => {
               const date = parseDate(entry.date)
               const isSelected = entry.date === selectedDateKey
+              const pct = normalizeCompletionPercent(entry.completion_percent)
+              const status = getDayStatus(pct, entry.is_completed, true)
 
               return (
                 <button
@@ -253,15 +301,15 @@ export default function GrassScreen({ token }: { token: string | null }) {
                   type="button"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-sm bg-[#2CB52C]" />
+                    <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: getGrassColor(pct) }} />
                     <div>
                       <p className="text-[13px] font-semibold text-[#191F28]">
                         {date.getMonth() + 1}월 {date.getDate()}일
                       </p>
-                      <p className="text-[12px] text-[#8B95A1]">운동 완료</p>
+                      <p className="text-[12px] text-[#8B95A1]">{status.detailLabel}</p>
                     </div>
                   </div>
-                  <p className="text-[13px] font-bold text-[#2CB52C]">100%</p>
+                  <p className={`text-[13px] font-bold ${entry.is_completed || pct >= 100 ? "text-[#2CB52C]" : "text-[#2563EB]"}`}>{pct}%</p>
                 </button>
               )
             })}
