@@ -1,8 +1,6 @@
-
-const DEFAULT_API_BASE_URL = "https://gunyoil.dsmhs.kr"
 export const AUTH_ERROR_EVENT = "gunyoil:auth-error"
 
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "")
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "")
 
 type ApiRequestOptions = {
   body?: BodyInit | FormData | object | null
@@ -28,7 +26,13 @@ function buildUrl(path: string) {
     return path
   }
 
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`
+
+  if (!API_BASE_URL) {
+    return normalizedPath
+  }
+
+  return `${API_BASE_URL}${normalizedPath}`
 }
 
 function parseResponseBody(text: string) {
