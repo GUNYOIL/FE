@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import AuthScreen from "@/components/auth-screen"
 import { createInitialProteinState } from "@/lib/app-config"
+import { isApiProfileComplete, apiUserToOnboardingProfileDraft } from "@/lib/api-adapters"
+import { getReadableApiError } from "@/lib/api-client"
+import { fetchMyProfile, login, signup } from "@/lib/api"
 import {
   createEmptyOnboardingDraft,
   isProfileDraftComplete,
@@ -23,6 +26,7 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [authError, setAuthError] = useState("")
   const [showSignupErrors, setShowSignupErrors] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     const persisted = readPersistedState()
@@ -91,7 +95,7 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
     password === confirmPassword
   const canLogin = isValidEmail(email) && password.length >= 6
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const persisted = readPersistedState()
 
     if (authMode === "signup") {
@@ -100,18 +104,37 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
         return
       }
 
-      writePersistedState({
-        ...persisted,
-        account: {
+      setIsSubmitting(true)
+      setAuthError("")
+
+      try {
+        await signup({
           email: email.trim(),
           password,
-        },
-        onboardingData: null,
-        onboarded: false,
-        proteinState: createInitialProteinState(),
-        onboardingDraft: createEmptyOnboardingDraft(),
-      })
-      router.push("/onboarding/profile")
+        })
+        const tokens = await login({
+          email: email.trim(),
+          password,
+        })
+
+        writePersistedState({
+          ...persisted,
+          account: {
+            email: email.trim(),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          },
+          onboardingData: null,
+          onboarded: false,
+          proteinState: createInitialProteinState(),
+          onboardingDraft: createEmptyOnboardingDraft(),
+        })
+        router.push("/onboarding/profile")
+      } catch (error) {
+        setAuthError(getReadableApiError(error, "회원가입에 실패했습니다."))
+      } finally {
+        setIsSubmitting(false)
+      }
       return
     }
 
@@ -119,23 +142,50 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
       return
     }
 
-    if (!persisted.account || persisted.account.email !== email.trim() || persisted.account.password !== password) {
-      setAuthError("이메일 또는 비밀번호를 확인해 주세요.")
-      return
-    }
-
+    setIsSubmitting(true)
     setAuthError("")
-    if (persisted.onboardingData) {
-      router.push("/")
-      return
-    }
 
-    if (persisted.onboardingDraft && isProfileDraftComplete(persisted.onboardingDraft.profile)) {
-      router.push("/onboarding/routine")
-      return
-    }
+    try {
+      const tokens = await login({
+        email: email.trim(),
+        password,
+      })
+      const user = await fetchMyProfile(tokens.accessToken)
+      const remoteDraft = apiUserToOnboardingProfileDraft(user)
+      const nextOnboardingDraft =
+        !user.onboarding_completed && (persisted.onboardingDraft || isApiProfileComplete(user))
+          ? {
+              profile: isApiProfileComplete(user) ? remoteDraft : persisted.onboardingDraft?.profile ?? remoteDraft,
+              routines: persisted.onboardingDraft?.routines ?? createEmptyOnboardingDraft().routines,
+            }
+          : persisted.onboardingDraft
 
-    router.push("/onboarding/profile")
+      writePersistedState({
+        ...persisted,
+        account: {
+          email: email.trim(),
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+        onboardingDraft: nextOnboardingDraft,
+      })
+
+      if (user.onboarding_completed) {
+        router.push("/")
+        return
+      }
+
+      if (nextOnboardingDraft && isProfileDraftComplete(nextOnboardingDraft.profile)) {
+        router.push("/onboarding/routine")
+        return
+      }
+
+      router.push("/onboarding/profile")
+    } catch (error) {
+      setAuthError(getReadableApiError(error, "이메일 또는 비밀번호를 확인해 주세요."))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!hasHydrated) {
@@ -151,6 +201,7 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
       confirmPasswordError={confirmPasswordError}
       email={email}
       emailError={emailError}
+      isSubmitting={isSubmitting}
       onConfirmPasswordChange={handleConfirmPasswordChange}
       onEmailChange={handleEmailChange}
       onPasswordChange={handlePasswordChange}

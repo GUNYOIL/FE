@@ -4,7 +4,11 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingScreen from "@/components/onboarding-screen"
 import { createEmptyRoutineMap } from "@/lib/app-config"
+import { apiUserToOnboardingProfileDraft } from "@/lib/api-adapters"
+import { loadRemoteOnboardingState, saveRemoteOnboarding } from "@/lib/api-sync"
+import { ApiError } from "@/lib/api-client"
 import {
+  clearPersistedAccount,
   createEmptyOnboardingProfileDraft,
   isProfileDraftComplete,
   readPersistedState,
@@ -20,6 +24,7 @@ export default function OnboardingRoutineRoute() {
 
   useEffect(() => {
     const persisted = readPersistedState()
+    let isCancelled = false
 
     if (!persisted.account) {
       router.replace("/signup")
@@ -39,6 +44,46 @@ export default function OnboardingRoutineRoute() {
     setProfileDraft(persisted.onboardingDraft.profile)
     setRoutines(persisted.onboardingDraft.routines)
     setHasHydrated(true)
+
+    void loadRemoteOnboardingState(persisted.account, persisted.onboardingData)
+      .then((remote) => {
+        if (isCancelled) {
+          return
+        }
+
+        if (remote.user.onboarding_completed) {
+          router.replace("/")
+          return
+        }
+
+        if (!persisted.onboardingDraft) {
+          setProfileDraft(apiUserToOnboardingProfileDraft(remote.user))
+        }
+
+        if (remote.onboardingData) {
+          setProfileDraft({
+            gender: remote.onboardingData.profile.gender,
+            height: String(remote.onboardingData.profile.height),
+            weight: String(remote.onboardingData.profile.weight),
+            goal: remote.onboardingData.profile.goal,
+          })
+          setRoutines(remote.onboardingData.routines)
+        }
+      })
+      .catch((error) => {
+        if (isCancelled) {
+          return
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          writePersistedState(clearPersistedAccount(persisted))
+          router.replace("/login")
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
   }, [router])
 
   if (!hasHydrated) {
@@ -63,6 +108,10 @@ export default function OnboardingRoutineRoute() {
           onboardingData: data,
           onboarded: true,
           onboardingDraft: null,
+        })
+
+        void saveRemoteOnboarding(persisted.account, data).catch((error) => {
+          console.error("Failed to sync onboarding completion", error)
         })
         router.push("/")
       }}
