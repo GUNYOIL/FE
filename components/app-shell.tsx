@@ -10,6 +10,7 @@ import {
   type ProteinState,
   type OnboardingData,
 } from "@/lib/app-config"
+import type { Account } from "@/lib/session"
 import BrandMark from "./brand-mark"
 import GrassScreen from "./grass-screen"
 import PwaInstallPrompt from "./pwa-install-prompt"
@@ -78,11 +79,13 @@ const TABS: { id: Tab; icon: ReactNode; label: string }[] = [
 ]
 
 export default function AppShell({
+  account,
   onboardingData,
   onOnboardingDataChange,
   proteinState,
   setProteinState,
 }: {
+  account?: Account | null
   onboardingData: OnboardingData
   onOnboardingDataChange: (nextData: OnboardingData) => void
   proteinState: ProteinState
@@ -170,9 +173,9 @@ export default function AppShell({
         <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
           {activeTab === "오늘" ? <TodayScreen routines={routines} /> : null}
           {activeTab === "루틴" ? <RoutineScreen onEdit={() => setIsRoutineEditing(true)} routines={routines} /> : null}
-          {activeTab === "잔디" ? <GrassScreen /> : null}
+          {activeTab === "잔디" ? <GrassScreen token={account?.accessToken ?? null} /> : null}
           {activeTab === "단백질" ? (
-            <ProteinScreen profile={profile} proteinState={proteinState} setProteinState={setProteinState} />
+            <ProteinScreen profile={profile} proteinState={proteinState} setProteinState={setProteinState} token={account?.accessToken ?? null} />
           ) : null}
         </div>
       </main>

@@ -1,5 +1,16 @@
 import { apiRequest, ApiError } from "@/lib/api-client"
-import type { ApiAuthTokens, ApiExercise, ApiRoutine, ApiUser } from "@/lib/api-types"
+import type {
+  ApiAuthTokens,
+  ApiExercise,
+  ApiGrassEntry,
+  ApiMealOverview,
+  ApiProteinLogCreate,
+  ApiProteinOverview,
+  ApiRoutine,
+  ApiSchoolLunchResponse,
+  ApiSchoolMealSelectionSave,
+  ApiUser,
+} from "@/lib/api-types"
 
 type Credentials = {
   email: string
@@ -157,4 +168,60 @@ export async function saveMyRoutines(token: string, routines: object[]) {
   }
 
   throw lastError ?? new Error("루틴 저장에 실패했습니다.")
+}
+
+export async function fetchMyGrass(token: string) {
+  const payload = await apiRequest<unknown>("/me/grass/", {
+    token,
+  })
+
+  return coerceArray<ApiGrassEntry>(payload, ["results", "items", "data", "entries", "grass"])
+}
+
+export function fetchProteinOverview(token: string) {
+  return apiRequest<ApiProteinOverview>("/me/protein", {
+    token,
+  })
+}
+
+export function createProteinLog(token: string, body: ApiProteinLogCreate) {
+  return apiRequest<unknown>("/me/protein/logs", {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+export function deleteProteinLog(token: string, logId: number) {
+  return apiRequest<unknown>(`/me/protein/logs/${logId}/`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+export function fetchMealOverview(token: string) {
+  return apiRequest<ApiMealOverview>("/me/meals", {
+    token,
+  })
+}
+
+export function fetchSchoolLunch(token: string) {
+  return apiRequest<ApiSchoolLunchResponse>("/me/meals/school-lunch", {
+    token,
+  })
+}
+
+export function saveSchoolLunchSelection(token: string, body: ApiSchoolMealSelectionSave) {
+  return apiRequest<unknown>("/me/meals/school-lunch/logs", {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+export function deleteMealLog(token: string, mealId: number) {
+  return apiRequest<unknown>(`/me/meals/logs/${mealId}/`, {
+    method: "DELETE",
+    token,
+  })
 }

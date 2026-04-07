@@ -1,13 +1,15 @@
 "use client"
 
-import { useState, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { createProteinLog, deleteMealLog, deleteProteinLog, fetchMealOverview, fetchProteinOverview, fetchSchoolLunch, saveSchoolLunchSelection } from "@/lib/api"
+import { getReadableApiError } from "@/lib/api-client"
+import type { ApiSchoolMealSelection } from "@/lib/api-types"
 import {
   QUICK_PROTEIN_ITEMS,
-  SERVING_PROTEIN,
   createInitialQuickProteinValues,
   getGoalOption,
   type ProteinState,
-  type ServingOption,
   type UserProfile,
 } from "@/lib/app-config"
 import { sanitizePositiveIntegerInput } from "@/lib/numeric-input"
@@ -15,6 +17,23 @@ import { MinusIcon, PlusIcon } from "./icons"
 
 const DEFAULT_QUICK_PROTEIN_VALUES = createInitialQuickProteinValues()
 const QUICK_PROTEIN_MAX = 30
+
+const SCHOOL_SELECTION_LABELS: Record<ApiSchoolMealSelection, string> = {
+  none: "안 먹음",
+  small: "적게",
+  medium: "보통",
+  large: "많이",
+}
+
+type DisplayLogEntry = {
+  id: string
+  rawId: number
+  source: "protein" | "meal"
+  label: string
+  protein: number
+  time: string
+  createdAt: string
+}
 
 function sanitizeQuickProteinInput(value: string) {
   const sanitized = sanitizePositiveIntegerInput(value)
@@ -34,30 +53,151 @@ function parseQuickProteinValue(value: string | undefined, fallback: number) {
   return parsed
 }
 
+function parseDecimal(value: string | null | undefined) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatTimeLabel(value: string | undefined, fallbackDate: string) {
+  const source = value ?? `${fallbackDate}T00:00:00`
+  const date = new Date(source)
+
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+
+  return date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+  })
+}
+
 export default function ProteinScreen({
   profile,
   proteinState,
   setProteinState,
+  token,
 }: {
   profile: UserProfile
   proteinState: ProteinState
   setProteinState: Dispatch<SetStateAction<ProteinState>>
+  token: string | null
 }) {
+  const queryClient = useQueryClient()
   const goalOption = getGoalOption(profile.goal)
-  const goal = profile.proteinTarget
   const [customInput, setCustomInput] = useState("")
   const [customG, setCustomG] = useState("")
-  const { cafeteria, log, quickCounts } = proteinState
+  const [schoolSelections, setSchoolSelections] = useState<Record<string, ApiSchoolMealSelection>>({})
+  const { quickCounts } = proteinState
   const quickProteinValues = {
     ...DEFAULT_QUICK_PROTEIN_VALUES,
     ...(proteinState.quickProteinValues ?? {}),
   }
 
-  const cafeteriaProtein = cafeteria.reduce((sum, item) => sum + SERVING_PROTEIN[item.serving], 0)
-  const totalIntake = log.reduce((sum, entry) => sum + entry.protein, 0)
-  const remaining = Math.max(0, goal - totalIntake)
-  const pct = goal > 0 ? Math.min(100, Math.round((totalIntake / goal) * 100)) : 0
-  const servingOptions: ServingOption[] = ["안 먹음", "적게", "보통", "많이"]
+  const proteinQuery = useQuery({
+    queryKey: ["proteinOverview", token],
+    queryFn: () => fetchProteinOverview(token as string),
+    enabled: Boolean(token),
+  })
+  const mealQuery = useQuery({
+    queryKey: ["mealOverview", token],
+    queryFn: () => fetchMealOverview(token as string),
+    enabled: Boolean(token),
+  })
+  const schoolLunchQuery = useQuery({
+    queryKey: ["schoolLunch", token],
+    queryFn: () => fetchSchoolLunch(token as string),
+    enabled: Boolean(token),
+  })
+
+  if (!token) {
+    return (
+      <div className="flex h-full flex-col overflow-y-auto px-4 pt-5 pb-6">
+        <p className="text-[12px] font-semibold text-[#8B95A1]">섭취 관리</p>
+        <h2 className="mt-1 text-[24px] font-bold tracking-tight text-[#191F28]">단백질</h2>
+        <div className="mt-4 rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-5">
+          <p className="text-[14px] font-semibold text-[#191F28]">로그인 이후 급식과 단백질 기록을 불러옵니다</p>
+        </div>
+      </div>
+    )
+  }
+
+  useEffect(() => {
+    if (!schoolLunchQuery.data) {
+      return
+    }
+
+    setSchoolSelections(
+      schoolLunchQuery.data.menus.reduce<Record<string, ApiSchoolMealSelection>>((accumulator, menu) => {
+        accumulator[menu.name] = menu.default_selection
+        return accumulator
+      }, {}),
+    )
+  }, [schoolLunchQuery.data?.date])
+
+  const invalidateOverviewQueries = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["proteinOverview", token] }),
+      queryClient.invalidateQueries({ queryKey: ["mealOverview", token] }),
+      queryClient.invalidateQueries({ queryKey: ["schoolLunch", token] }),
+    ])
+
+  const createProteinLogMutation = useMutation({
+    mutationFn: (payload: { amount: string; type: "quick" | "manual" | "supplement"; note?: string }) =>
+      createProteinLog(token as string, payload),
+    onSuccess: () => invalidateOverviewQueries(),
+  })
+  const deleteProteinLogMutation = useMutation({
+    mutationFn: (logId: number) => deleteProteinLog(token as string, logId),
+    onSuccess: () => invalidateOverviewQueries(),
+  })
+  const deleteMealLogMutation = useMutation({
+    mutationFn: (mealId: number) => deleteMealLog(token as string, mealId),
+    onSuccess: () => invalidateOverviewQueries(),
+  })
+  const saveSchoolLunchMutation = useMutation({
+    mutationFn: () => {
+      if (!schoolLunchQuery.data) {
+        throw new Error("오늘 급식 정보가 없습니다.")
+      }
+
+      const normalizedMealType =
+        schoolLunchQuery.data.meal_type === "breakfast" || schoolLunchQuery.data.meal_type === "dinner" ? schoolLunchQuery.data.meal_type : "lunch"
+
+      return saveSchoolLunchSelection(token as string, {
+        date: schoolLunchQuery.data.date,
+        meal_type: normalizedMealType,
+        items: schoolLunchQuery.data.menus.map((menu) => {
+          const selection = schoolSelections[menu.name] ?? menu.default_selection
+          return {
+            menu_name: menu.name,
+            selection,
+            estimated_protein_grams: menu.estimated_protein_grams,
+            final_protein_grams: menu.selection_options[selection],
+          }
+        }),
+      })
+    },
+    onSuccess: () => invalidateOverviewQueries(),
+  })
+
+  const proteinOverview = proteinQuery.data
+  const mealOverview = mealQuery.data
+  const schoolLunch = schoolLunchQuery.data
+  const totalIntake = parseDecimal(proteinOverview?.consumed_amount)
+  const goal = parseDecimal(proteinOverview?.target_amount) || profile.proteinTarget
+  const remaining =
+    proteinOverview?.remaining_amount !== undefined && proteinOverview?.remaining_amount !== null
+      ? parseDecimal(proteinOverview.remaining_amount)
+      : Math.max(0, goal - totalIntake)
+  const pct = typeof proteinOverview?.progress_percent === "number" ? proteinOverview.progress_percent : goal > 0 ? Math.min(100, Math.round((totalIntake / goal) * 100)) : 0
+  const servingOptions = useMemo(() => Object.keys(SCHOOL_SELECTION_LABELS) as ApiSchoolMealSelection[], [])
+  const menus = schoolLunch?.menus ?? []
+  const cafeteriaProtein = menus.reduce((sum, menu) => {
+    const selection = schoolSelections[menu.name] ?? menu.default_selection
+    return sum + parseDecimal(menu.selection_options[selection])
+  }, 0)
   const quickSelectionTotal = QUICK_PROTEIN_ITEMS.reduce(
     (sum, item) => sum + parseQuickProteinValue(quickProteinValues[item.id], item.protein) * (quickCounts[item.id] ?? 0),
     0,
@@ -66,13 +206,31 @@ export default function ProteinScreen({
     (item) => (quickCounts[item.id] ?? 0) > 0 && parseQuickProteinValue(quickProteinValues[item.id], item.protein) <= 0,
   )
   const canLogCustom = customInput.trim().length > 0 && Number(customG) > 0
-
-  const setServing = (id: string, serving: ServingOption) => {
-    setProteinState((previous) => ({
-      ...previous,
-      cafeteria: previous.cafeteria.map((item) => (item.id === id ? { ...item, serving } : item)),
+  const combinedLogs = useMemo<DisplayLogEntry[]>(() => {
+    const proteinLogs = (proteinOverview?.logs ?? [])
+      .filter((entry) => entry.type !== "meal")
+      .map((entry) => ({
+        id: `protein-${entry.id}`,
+        rawId: entry.id,
+        source: "protein" as const,
+        label: entry.note?.trim() || entry.type_label || "단백질 기록",
+        protein: parseDecimal(entry.amount),
+        time: formatTimeLabel(entry.created_at, entry.date),
+        createdAt: entry.created_at ?? `${entry.date}T00:00:00`,
+      }))
+    const mealLogs = (mealOverview?.meals ?? []).map((entry) => ({
+      id: `meal-${entry.id}`,
+      rawId: entry.id,
+      source: "meal" as const,
+      label: entry.name,
+      protein: parseDecimal(entry.protein),
+      time: formatTimeLabel(entry.created_at, entry.date),
+      createdAt: entry.created_at ?? `${entry.date}T00:00:00`,
     }))
-  }
+
+    return [...mealLogs, ...proteinLogs].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  }, [mealOverview?.meals, proteinOverview?.logs])
+  const topLevelError = proteinQuery.error || mealQuery.error
 
   const adjustQuick = (id: string, delta: number) => {
     setProteinState((previous) => ({
@@ -106,30 +264,22 @@ export default function ProteinScreen({
     }))
   }
 
-  const logCafeteria = () => {
-    if (cafeteriaProtein === 0) {
-      return
-    }
-
-    setProteinState((previous) => ({
+  const setServing = (menuName: string, selection: ApiSchoolMealSelection) => {
+    setSchoolSelections((previous) => ({
       ...previous,
-      log: [
-        ...previous.log,
-        {
-          id: `log-${Date.now()}`,
-          label: "급식 식단",
-          protein: cafeteriaProtein,
-          time: new Date().toLocaleTimeString("ko-KR", {
-            hour: "2-digit",
-            hour12: false,
-            minute: "2-digit",
-          }),
-        },
-      ],
+      [menuName]: selection,
     }))
   }
 
-  const logQuick = () => {
+  const logCafeteria = async () => {
+    if (cafeteriaProtein === 0 || !schoolLunch) {
+      return
+    }
+
+    await saveSchoolLunchMutation.mutateAsync()
+  }
+
+  const logQuick = async () => {
     const selectedItems = QUICK_PROTEIN_ITEMS.filter((item) => (quickCounts[item.id] ?? 0) > 0)
     if (
       selectedItems.length === 0 ||
@@ -138,25 +288,21 @@ export default function ProteinScreen({
       return
     }
 
+    await Promise.all(
+      selectedItems.map((item) => {
+        const count = quickCounts[item.id] ?? 0
+        const perServingProtein = parseQuickProteinValue(quickProteinValues[item.id], item.protein)
+
+        return createProteinLogMutation.mutateAsync({
+          amount: String(perServingProtein * count),
+          type: "quick",
+          note: count > 1 ? `${item.name} ${perServingProtein}g x${count}` : `${item.name} ${perServingProtein}g`,
+        })
+      }),
+    )
+
     setProteinState((previous) => ({
       ...previous,
-      log: [
-        ...previous.log,
-        ...selectedItems.map((item) => {
-          const count = previous.quickCounts[item.id] ?? 0
-          const perServingProtein = parseQuickProteinValue(previous.quickProteinValues?.[item.id], item.protein)
-          return {
-            id: `log-${Date.now()}-${item.id}`,
-            label: count > 1 ? `${item.name} ${perServingProtein}g x${count}` : `${item.name} ${perServingProtein}g`,
-            protein: perServingProtein * count,
-            time: new Date().toLocaleTimeString("ko-KR", {
-              hour: "2-digit",
-              hour12: false,
-              minute: "2-digit",
-            }),
-          }
-        }),
-      ],
       quickCounts: QUICK_PROTEIN_ITEMS.reduce((accumulator, item) => {
         accumulator[item.id] = 0
         return accumulator
@@ -164,37 +310,45 @@ export default function ProteinScreen({
     }))
   }
 
-  const logCustom = () => {
+  const logCustom = async () => {
     const grams = Number(customG)
-    if (!customInput || grams <= 0) {
+    if (!customInput.trim() || grams <= 0) {
       return
     }
 
-    setProteinState((previous) => ({
-      ...previous,
-      log: [
-        ...previous.log,
-        {
-          id: `log-${Date.now()}`,
-          label: customInput,
-          protein: grams,
-          time: new Date().toLocaleTimeString("ko-KR", {
-            hour: "2-digit",
-            hour12: false,
-            minute: "2-digit",
-          }),
-        },
-      ],
-    }))
+    await createProteinLogMutation.mutateAsync({
+      amount: String(grams),
+      type: "manual",
+      note: customInput.trim(),
+    })
     setCustomInput("")
     setCustomG("")
   }
 
-  const removeLog = (id: string) => {
-    setProteinState((previous) => ({
-      ...previous,
-      log: previous.log.filter((entry) => entry.id !== id),
-    }))
+  const removeLog = async (entry: DisplayLogEntry) => {
+    if (entry.source === "meal") {
+      await deleteMealLogMutation.mutateAsync(entry.rawId)
+      return
+    }
+
+    await deleteProteinLogMutation.mutateAsync(entry.rawId)
+  }
+
+  if (proteinQuery.isLoading || mealQuery.isLoading) {
+    return <div className="min-h-full bg-[#F7F8FA]" />
+  }
+
+  if (topLevelError) {
+    return (
+      <div className="flex h-full flex-col overflow-y-auto px-4 pt-5 pb-6">
+        <p className="text-[12px] font-semibold text-[#8B95A1]">섭취 관리</p>
+        <h2 className="mt-1 text-[24px] font-bold tracking-tight text-[#191F28]">단백질</h2>
+        <div className="mt-4 rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-5">
+          <p className="text-[14px] font-semibold text-[#191F28]">단백질 데이터를 불러오지 못했습니다</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#8B95A1]">{getReadableApiError(topLevelError)}</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -227,7 +381,7 @@ export default function ProteinScreen({
               className="h-full rounded-full transition-all duration-500"
               style={{
                 backgroundColor: pct >= 100 ? "#2CB52C" : "#3182F6",
-                width: `${pct}%`,
+                width: `${Math.max(0, Math.min(100, pct))}%`,
               }}
             />
           </div>
@@ -249,45 +403,56 @@ export default function ProteinScreen({
           <div className="flex items-center justify-between border-b border-[#E5E8EB] px-4 py-3">
             <div>
               <p className="text-[14px] font-semibold text-[#191F28]">오늘 급식</p>
-              <p className="text-[12px] text-[#8B95A1]">예상 {cafeteriaProtein}g</p>
+              <p className="text-[12px] text-[#8B95A1]">선택 기준 {cafeteriaProtein}g</p>
             </div>
             <button
               className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${
-                cafeteriaProtein > 0 ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
+                cafeteriaProtein > 0 && !saveSchoolLunchMutation.isPending ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
               }`}
-              disabled={cafeteriaProtein === 0}
-              onClick={logCafeteria}
+              disabled={cafeteriaProtein === 0 || saveSchoolLunchMutation.isPending || schoolLunchQuery.isLoading || !schoolLunch}
+              onClick={() => void logCafeteria()}
               type="button"
             >
-              급식 기록
+              {saveSchoolLunchMutation.isPending ? "기록 중..." : "급식 기록"}
             </button>
           </div>
-          <div className="divide-y divide-[#E5E8EB]">
-            {cafeteria.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-medium text-[#191F28]">{item.name}</p>
-                  <p className="text-[11px] text-[#8B95A1]">{SERVING_PROTEIN[item.serving]}g</p>
-                </div>
-                <div className="flex shrink-0 gap-1">
-                  {servingOptions.map((option) => (
-                    <button
-                      key={option}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
-                        item.serving === option
-                          ? "bg-[#3182F6] text-white"
-                          : "border border-[#E5E8EB] bg-[#F8FAFC] text-[#8B95A1]"
-                      }`}
-                      onClick={() => setServing(item.id, option)}
-                      type="button"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          {schoolLunchQuery.error ? (
+            <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">{getReadableApiError(schoolLunchQuery.error)}</div>
+          ) : menus.length === 0 ? (
+            <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">오늘 급식 정보가 없습니다.</div>
+          ) : (
+            <div className="divide-y divide-[#E5E8EB]">
+              {menus.map((menu) => {
+                const selection = schoolSelections[menu.name] ?? menu.default_selection
+                const finalProtein = parseDecimal(menu.selection_options[selection])
+
+                return (
+                  <div key={menu.name} className="flex items-center justify-between gap-2 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium text-[#191F28]">{menu.name}</p>
+                      <p className="text-[11px] text-[#8B95A1]">{finalProtein}g</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      {servingOptions.map((option) => (
+                        <button
+                          key={option}
+                          className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
+                            selection === option
+                              ? "bg-[#3182F6] text-white"
+                              : "border border-[#E5E8EB] bg-[#F8FAFC] text-[#8B95A1]"
+                          }`}
+                          onClick={() => setServing(menu.name, option)}
+                          type="button"
+                        >
+                          {SCHOOL_SELECTION_LABELS[option]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -302,10 +467,12 @@ export default function ProteinScreen({
             </div>
             <button
               className={`w-full rounded-xl px-4 py-2.5 text-[13px] font-semibold sm:w-auto ${
-                quickSelectionTotal > 0 && !hasInvalidQuickSelection ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
+                quickSelectionTotal > 0 && !hasInvalidQuickSelection && !createProteinLogMutation.isPending
+                  ? "bg-[#191F28] text-white"
+                  : "bg-[#F2F4F6] text-[#8B95A1]"
               }`}
-              disabled={quickSelectionTotal === 0 || hasInvalidQuickSelection}
-              onClick={logQuick}
+              disabled={quickSelectionTotal === 0 || hasInvalidQuickSelection || createProteinLogMutation.isPending}
+              onClick={() => void logQuick()}
               type="button"
             >
               빠른 추가 기록
@@ -339,11 +506,7 @@ export default function ProteinScreen({
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#8B95A1]">
                         <span>{isCustomized ? `현재 ${parsedProteinValue}g / 1회` : `기본 ${item.protein}g / 1회`}</span>
                         {isCustomized ? (
-                          <button
-                            className="font-semibold text-[#3182F6]"
-                            onClick={() => resetQuickProteinValue(item.id, item.protein)}
-                            type="button"
-                          >
+                          <button className="font-semibold text-[#3182F6]" onClick={() => resetQuickProteinValue(item.id, item.protein)} type="button">
                             기본값 복귀
                           </button>
                         ) : null}
@@ -431,10 +594,10 @@ export default function ProteinScreen({
                 </div>
                 <button
                   className={`flex-1 rounded-xl px-3 py-2.5 text-[13px] font-medium sm:flex-none ${
-                    canLogCustom ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
+                    canLogCustom && !createProteinLogMutation.isPending ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
                   }`}
-                  disabled={!canLogCustom}
-                  onClick={logCustom}
+                  disabled={!canLogCustom || createProteinLogMutation.isPending}
+                  onClick={() => void logCustom()}
                   type="button"
                 >
                   직접 추가
@@ -445,22 +608,29 @@ export default function ProteinScreen({
         </div>
       </div>
 
+      {(createProteinLogMutation.error || saveSchoolLunchMutation.error || deleteProteinLogMutation.error || deleteMealLogMutation.error) ? (
+        <div className="px-4 mb-4">
+          <div className="rounded-[18px] bg-[#FFF4EB] px-4 py-3 text-[13px] font-medium text-[#F97316]">
+            {getReadableApiError(
+              createProteinLogMutation.error ?? saveSchoolLunchMutation.error ?? deleteProteinLogMutation.error ?? deleteMealLogMutation.error,
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <div className="px-4 mb-6">
         <p className="mb-2 text-[13px] font-semibold text-[#4E5968]">오늘 기록</p>
-        {log.length === 0 ? (
+        {combinedLogs.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#E5E8EB] py-8 text-center">
             <p className="text-[13px] font-medium text-[#191F28]">아직 기록이 없습니다</p>
             <p className="mt-1 text-[12px] text-[#8B95A1]">급식 또는 빠른 추가로 첫 기록을 남겨 보세요</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {log.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between rounded-xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-3"
-              >
+            {combinedLogs.map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between rounded-xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-2 w-2 rounded-full bg-[#3182F6]" />
+                  <div className={`h-2 w-2 rounded-full ${entry.source === "meal" ? "bg-[#2CB52C]" : "bg-[#3182F6]"}`} />
                   <div>
                     <p className="text-[13px] font-medium text-[#191F28]">{entry.label}</p>
                     <p className="text-[11px] text-[#8B95A1]">{entry.time}</p>
@@ -468,7 +638,12 @@ export default function ProteinScreen({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-bold text-[#3182F6]">+{entry.protein}g</span>
-                  <button className="px-1.5 py-0.5 text-[11px] text-[#8B95A1]" onClick={() => removeLog(entry.id)} type="button">
+                  <button
+                    className="px-1.5 py-0.5 text-[11px] text-[#8B95A1]"
+                    disabled={deleteProteinLogMutation.isPending || deleteMealLogMutation.isPending}
+                    onClick={() => void removeLog(entry)}
+                    type="button"
+                  >
                     ×
                   </button>
                 </div>

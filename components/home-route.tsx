@@ -115,6 +115,7 @@ export default function HomeRoute() {
 
   return (
     <AppShell
+      account={account}
       onboardingData={onboardingData}
       onOnboardingDataChange={(nextData) => {
         setOnboardingData(nextData)
