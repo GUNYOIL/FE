@@ -107,6 +107,7 @@ export type ApiMealOverview = {
 }
 
 export type ApiSchoolMealSelection = "none" | "small" | "medium" | "large"
+export type ApiSchoolMealType = "breakfast" | "lunch" | "dinner"
 
 export type ApiSchoolMealOption = Record<ApiSchoolMealSelection, string>
 
@@ -120,7 +121,7 @@ export type ApiSchoolMealMenu = {
 export type ApiSchoolLunchResponse = {
   date: string
   school?: Record<string, unknown>
-  meal_type: "breakfast" | "lunch" | "dinner" | string
+  meal_type: ApiSchoolMealType | string
   meal_type_label?: string
   menus: ApiSchoolMealMenu[]
   estimated_total_protein: string
@@ -182,6 +183,6 @@ export type ApiSchoolMealSelectionItemWrite = {
 
 export type ApiSchoolMealSelectionSave = {
   date?: string
-  meal_type: "breakfast" | "lunch" | "dinner"
+  meal_type: ApiSchoolMealType
   items: ApiSchoolMealSelectionItemWrite[]
 }
