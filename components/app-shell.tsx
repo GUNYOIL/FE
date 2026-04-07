@@ -171,7 +171,7 @@ export default function AppShell({
 
       <main className="relative flex-1 overflow-hidden bg-[#F7F8FA]">
         <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-          {activeTab === "오늘" ? <TodayScreen routines={routines} /> : null}
+          {activeTab === "오늘" ? <TodayScreen routines={routines} token={account?.accessToken ?? null} /> : null}
           {activeTab === "루틴" ? <RoutineScreen onEdit={() => setIsRoutineEditing(true)} routines={routines} /> : null}
           {activeTab === "잔디" ? <GrassScreen token={account?.accessToken ?? null} /> : null}
           {activeTab === "단백질" ? (

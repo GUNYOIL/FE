@@ -9,7 +9,10 @@ import type {
   ApiRoutine,
   ApiSchoolLunchResponse,
   ApiSchoolMealSelectionSave,
+  ApiTodayLog,
+  ApiTodayWorkoutSync,
   ApiUser,
+  ApiWorkoutSetUpdate,
 } from "@/lib/api-types"
 
 type Credentials = {
@@ -176,6 +179,70 @@ export async function fetchMyGrass(token: string) {
   })
 
   return coerceArray<ApiGrassEntry>(payload, ["results", "items", "data", "entries", "grass"])
+}
+
+export async function fetchTodayWorkout(token: string) {
+  try {
+    return await requestWithFallbacks(["/me/workouts/today/", "/me/workouts/today"], (path) =>
+      apiRequest<unknown>(path, {
+        token,
+      }),
+    ).then((payload) => {
+      if (!payload) {
+        return null
+      }
+
+      if (Array.isArray(payload)) {
+        return (payload[0] as ApiTodayLog | undefined) ?? null
+      }
+
+      return payload as ApiTodayLog
+    })
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null
+    }
+
+    throw error
+  }
+}
+
+export async function syncTodayWorkout(token: string, body: ApiTodayWorkoutSync) {
+  try {
+    return await requestWithFallbacks(["/me/workouts/today/", "/me/workouts/today"], (path) =>
+      apiRequest<unknown>(path, {
+        method: "PUT",
+        token,
+        body,
+      }),
+    ).then((payload) => {
+      if (!payload) {
+        return null
+      }
+
+      if (Array.isArray(payload)) {
+        return (payload[0] as ApiTodayLog | undefined) ?? null
+      }
+
+      return payload as ApiTodayLog
+    })
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null
+    }
+
+    throw error
+  }
+}
+
+export function saveTodayWorkoutSet(token: string, body: ApiWorkoutSetUpdate) {
+  return requestWithFallbacks(["/me/workouts/today/sets", "/me/workouts/today/sets/"], (path) =>
+    apiRequest<unknown>(path, {
+      method: "POST",
+      token,
+      body,
+    }),
+  )
 }
 
 export function fetchProteinOverview(token: string) {

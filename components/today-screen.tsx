@@ -1,25 +1,33 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { fetchTodayWorkout, saveTodayWorkoutSet } from "@/lib/api"
+import { getReadableApiError } from "@/lib/api-client"
+import type { ApiTodayLog, ApiWorkoutSetUpdate } from "@/lib/api-types"
 import {
   DAY_META,
   formatBodyParts,
   formatExerciseMetricSummary,
   formatSupersetExerciseNames,
+  getExerciseMetricDefaultValues,
   getExerciseMetricHint,
   getExerciseMetricProfile,
   getTodayDayKey,
   hasWorkoutBodyParts,
   isSupersetPair,
   isRestDay,
+  type ExerciseDraft,
   type ExerciseField,
   type RoutineMap,
 } from "@/lib/app-config"
+import { findMachineByExerciseName, normalizeExerciseName } from "@/lib/exercise-name-matcher"
 import { sanitizeNonNegativeDecimalInput, sanitizePositiveIntegerInput } from "@/lib/numeric-input"
 import { CheckCircle2Icon, CircleIcon } from "./icons"
 import MachineVisual from "./machine-visual"
 
 type SetState = "idle" | "done"
+type SaveState = "idle" | "saving" | "success" | "error"
 
 type ExerciseRecord = {
   id: string
@@ -29,7 +37,9 @@ type ExerciseRecord = {
   targetValues: Record<ExerciseField, number>
   completions: SetState[]
   actualSetReps: Record<number, string>
+  actualSetWeights: Record<number, string>
   actualValues: Partial<Record<ExerciseField, string>>
+  backendSetIds: Record<number, number>
 }
 
 type ExerciseRecordGroup = {
@@ -38,33 +48,190 @@ type ExerciseRecordGroup = {
   records: ExerciseRecord[]
 }
 
-function createExerciseRecords(routines: RoutineMap) {
-  const todayKey = getTodayDayKey()
-  const routine = routines[todayKey]
+type RemoteExerciseGroup = {
+  key: string
+  normalizedName: string
+  machineId: string
+  exerciseName: string
+  sets: NonNullable<ApiTodayLog["sets"]>
+}
 
-  if (!routine || isRestDay(routine.bodyParts) || routine.exercises.length === 0) {
-    return []
+function getMachineIdFromName(name: string) {
+  const matchedMachine = findMachineByExerciseName(name)
+  const normalizedName = normalizeExerciseName(name)
+
+  if (matchedMachine) {
+    return matchedMachine.id
   }
 
-  return routine.exercises.map((exercise) => {
-    const profile = getExerciseMetricProfile(exercise.machineId)
-    const completionCount = profile.trackingMode === "setBased" ? Math.max(1, Number(exercise.sets) || 1) : 1
+  return normalizedName ? `exercise-${normalizedName}` : "exercise-unknown"
+}
 
-    return {
-      id: exercise.id,
-      machineId: exercise.machineId,
-      name: exercise.machineName,
-      supersetGroupId: exercise.supersetGroupId,
-      targetValues: {
-        weight: Number(exercise.weight) || 0,
-        reps: Number(exercise.reps) || 0,
-        sets: Number(exercise.sets) || 0,
-      },
-      completions: Array.from({ length: completionCount }, () => "idle" as const),
-      actualSetReps: {},
-      actualValues: {},
+function formatMetricInput(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return ""
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? String(parsed) : ""
+}
+
+function parseNumberInput(value: string | undefined, fallback: number) {
+  if (!value?.trim()) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function parseIntegerInput(value: string | undefined, fallback: number) {
+  if (!value?.trim()) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.round(parsed) : fallback
+}
+
+function createLocalExerciseRecord(exercise: ExerciseDraft): ExerciseRecord {
+  const profile = getExerciseMetricProfile(exercise.machineId)
+  const completionCount = profile.trackingMode === "setBased" ? Math.max(1, Number(exercise.sets) || 1) : 1
+  const repsInput = formatMetricInput(exercise.reps)
+  const weightInput = formatMetricInput(exercise.weight)
+  const setsInput = formatMetricInput(exercise.sets)
+  const actualSetReps: Record<number, string> = {}
+  const actualSetWeights: Record<number, string> = {}
+
+  for (let index = 0; index < completionCount; index += 1) {
+    actualSetReps[index] = repsInput
+    actualSetWeights[index] = weightInput
+  }
+
+  return {
+    id: exercise.id,
+    machineId: exercise.machineId,
+    name: exercise.machineName,
+    supersetGroupId: exercise.supersetGroupId,
+    targetValues: {
+      weight: Number(exercise.weight) || 0,
+      reps: Number(exercise.reps) || 0,
+      sets: Number(exercise.sets) || 0,
+    },
+    completions: Array.from({ length: completionCount }, () => "idle" as const),
+    actualSetReps,
+    actualSetWeights,
+    actualValues:
+      profile.trackingMode === "singleSession"
+        ? {
+            weight: weightInput,
+            reps: repsInput,
+            sets: setsInput,
+          }
+        : {},
+    backendSetIds: {},
+  }
+}
+
+function createRemoteExerciseGroups(todayLog: ApiTodayLog | null | undefined) {
+  const groups = new Map<string, RemoteExerciseGroup>()
+
+  for (const set of todayLog?.sets ?? []) {
+    const exerciseName = set.exercise_name?.trim() || `운동 ${set.exercise}`
+    const normalizedName = normalizeExerciseName(exerciseName)
+    const key = `${set.exercise}:${normalizedName}`
+    const existing = groups.get(key)
+
+    if (existing) {
+      existing.sets.push(set)
+      continue
     }
-  })
+
+    groups.set(key, {
+      key,
+      normalizedName,
+      machineId: getMachineIdFromName(exerciseName),
+      exerciseName,
+      sets: [set],
+    })
+  }
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    sets: [...group.sets].sort((left, right) => left.set_number - right.set_number),
+  }))
+}
+
+function createRemoteExerciseRecord(group: RemoteExerciseGroup, baseExercise?: ExerciseDraft): ExerciseRecord {
+  const machineId = baseExercise?.machineId ?? group.machineId
+  const profile = getExerciseMetricProfile(machineId)
+  const firstSet = group.sets[0]
+  const targetWeight = baseExercise ? Number(baseExercise.weight) || 0 : firstSet?.weight ?? 0
+  const targetReps = baseExercise ? Number(baseExercise.reps) || 0 : firstSet?.reps ?? 0
+  const targetSets = baseExercise ? Number(baseExercise.sets) || group.sets.length : group.sets.length
+  const completionCount = profile.trackingMode === "setBased" ? Math.max(group.sets.length, targetSets, 1) : 1
+  const actualSetReps: Record<number, string> = {}
+  const actualSetWeights: Record<number, string> = {}
+  const backendSetIds: Record<number, number> = {}
+
+  for (let index = 0; index < completionCount; index += 1) {
+    const set = group.sets[index]
+    actualSetReps[index] = set ? formatMetricInput(set.reps) : formatMetricInput(baseExercise?.reps)
+    actualSetWeights[index] = set ? formatMetricInput(set.weight) : formatMetricInput(baseExercise?.weight)
+
+    if (set) {
+      backendSetIds[index] = set.id
+    }
+  }
+
+  return {
+    id: baseExercise?.id ?? `remote-${group.key}`,
+    machineId,
+    name: baseExercise?.machineName ?? group.exerciseName,
+    supersetGroupId: baseExercise?.supersetGroupId ?? null,
+    targetValues: {
+      weight: targetWeight,
+      reps: targetReps,
+      sets: targetSets,
+    },
+    completions: Array.from({ length: completionCount }, (_, index) => (group.sets[index]?.is_completed ? "done" : "idle")) as SetState[],
+    actualSetReps,
+    actualSetWeights,
+    actualValues:
+      profile.trackingMode === "singleSession"
+        ? {
+            weight: formatMetricInput(firstSet?.weight ?? baseExercise?.weight),
+            reps: formatMetricInput(firstSet?.reps ?? baseExercise?.reps),
+            sets: formatMetricInput(baseExercise?.sets ?? group.sets.length),
+          }
+        : {},
+    backendSetIds,
+  }
+}
+
+function createExerciseRecords(routines: RoutineMap, todayLog: ApiTodayLog | null | undefined) {
+  const todayKey = getTodayDayKey()
+  const routine = routines[todayKey]
+  const remoteGroups = createRemoteExerciseGroups(todayLog)
+  const records: ExerciseRecord[] = []
+
+  if (routine && !isRestDay(routine.bodyParts)) {
+    for (const exercise of routine.exercises) {
+      const normalizedName = normalizeExerciseName(exercise.machineName)
+      const matchedIndex = remoteGroups.findIndex(
+        (group) => group.normalizedName === normalizedName || group.machineId === exercise.machineId,
+      )
+      const matchedGroup = matchedIndex >= 0 ? remoteGroups.splice(matchedIndex, 1)[0] : null
+
+      records.push(matchedGroup ? createRemoteExerciseRecord(matchedGroup, exercise) : createLocalExerciseRecord(exercise))
+    }
+  }
+
+  for (const group of remoteGroups) {
+    records.push(createRemoteExerciseRecord(group))
+  }
+
+  return records
 }
 
 function groupExerciseRecords(exercises: ExerciseRecord[]): ExerciseRecordGroup[] {
@@ -108,11 +275,136 @@ function getCompletion(exerciseGroups: ExerciseRecordGroup[]) {
   }
 }
 
-export default function TodayScreen({ routines }: { routines: RoutineMap }) {
-  const [saved, setSaved] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [exercises, setExercises] = useState<ExerciseRecord[]>(() => createExerciseRecords(routines))
+function buildWorkoutSetUpdates(exercises: ExerciseRecord[]): ApiWorkoutSetUpdate[] {
+  return exercises.flatMap((exercise) => {
+    const profile = getExerciseMetricProfile(exercise.machineId)
+    const defaultValues = getExerciseMetricDefaultValues(exercise.machineId)
 
+    if (profile.trackingMode === "completionOnly") {
+      const setId = exercise.backendSetIds[0]
+
+      if (typeof setId !== "number") {
+        return []
+      }
+
+      return [
+        {
+          set_id: setId,
+          weight: Number(defaultValues.weight ?? 0),
+          reps: Number(defaultValues.reps ?? 1),
+          is_completed: exercise.completions[0] === "done",
+        },
+      ]
+    }
+
+    if (profile.trackingMode === "singleSession") {
+      const setId = exercise.backendSetIds[0]
+
+      if (typeof setId !== "number") {
+        return []
+      }
+
+      return [
+        {
+          set_id: setId,
+          weight: parseNumberInput(exercise.actualValues.weight, exercise.targetValues.weight),
+          reps: parseIntegerInput(exercise.actualValues.reps, exercise.targetValues.reps),
+          is_completed: exercise.completions[0] === "done",
+        },
+      ]
+    }
+
+    return exercise.completions.flatMap((state, index) => {
+      const setId = exercise.backendSetIds[index]
+
+      if (typeof setId !== "number") {
+        return []
+      }
+
+      return [
+        {
+          set_id: setId,
+          weight: parseNumberInput(exercise.actualSetWeights[index], exercise.targetValues.weight),
+          reps: parseIntegerInput(exercise.actualSetReps[index], exercise.targetValues.reps),
+          is_completed: state === "done",
+        },
+      ]
+    })
+  })
+}
+
+function hydrateExercisesWithTodayWorkout(exercises: ExerciseRecord[], todayLog: ApiTodayLog | null | undefined) {
+  const remoteGroups = createRemoteExerciseGroups(todayLog)
+
+  return exercises.map((exercise) => {
+    const normalizedName = normalizeExerciseName(exercise.name)
+    const matchedIndex = remoteGroups.findIndex(
+      (group) => group.normalizedName === normalizedName || group.machineId === exercise.machineId,
+    )
+
+    if (matchedIndex < 0) {
+      return exercise
+    }
+
+    const matchedGroup = remoteGroups.splice(matchedIndex, 1)[0]
+    const completionCount = Math.max(exercise.completions.length, matchedGroup.sets.length)
+    const nextCompletions = Array.from({ length: completionCount }, (_, index) => {
+      if (exercise.completions[index]) {
+        return exercise.completions[index]
+      }
+
+      return matchedGroup.sets[index]?.is_completed ? "done" : "idle"
+    }) as SetState[]
+    const nextActualSetReps = { ...exercise.actualSetReps }
+    const nextActualSetWeights = { ...exercise.actualSetWeights }
+    const nextBackendSetIds = { ...exercise.backendSetIds }
+
+    for (let index = 0; index < matchedGroup.sets.length; index += 1) {
+      const set = matchedGroup.sets[index]
+      nextBackendSetIds[index] = set.id
+
+      if (!nextActualSetReps[index]) {
+        nextActualSetReps[index] = formatMetricInput(set.reps)
+      }
+
+      if (!nextActualSetWeights[index]) {
+        nextActualSetWeights[index] = formatMetricInput(set.weight)
+      }
+    }
+
+    return {
+      ...exercise,
+      completions: nextCompletions,
+      actualSetReps: nextActualSetReps,
+      actualSetWeights: nextActualSetWeights,
+      backendSetIds: nextBackendSetIds,
+    }
+  })
+}
+
+export default function TodayScreen({ routines, token }: { routines: RoutineMap; token: string | null }) {
+  const queryClient = useQueryClient()
+  const resetTimerRef = useRef<number | null>(null)
+  const [saveState, setSaveState] = useState<SaveState>("idle")
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [exercises, setExercises] = useState<ExerciseRecord[]>(() => createExerciseRecords(routines, null))
+
+  const todayWorkoutQuery = useQuery({
+    queryKey: ["todayWorkout", token],
+    queryFn: () => fetchTodayWorkout(token as string),
+    enabled: Boolean(token),
+  })
+  const saveTodayWorkoutMutation = useMutation({
+    mutationFn: (payloads: ApiWorkoutSetUpdate[]) => Promise.all(payloads.map((payload) => saveTodayWorkoutSet(token as string, payload))),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["todayWorkout", token] }),
+        queryClient.invalidateQueries({ queryKey: ["grass", token] }),
+      ]),
+  })
+
+  const todayWorkout = todayWorkoutQuery.data ?? null
   const today = new Date()
   const dayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"]
   const todayKey = getTodayDayKey(today)
@@ -122,11 +414,31 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
   const todayLabel = DAY_META.find((day) => day.key === todayKey)?.full ?? dayStr
 
   useEffect(() => {
-    setExercises(createExerciseRecords(routines))
+    setExercises(createExerciseRecords(routines, todayWorkout))
     setExpandedId(null)
-  }, [routines])
+  }, [routines, todayWorkout])
 
-  const hasRoutine = hasWorkoutBodyParts(todayRoutine?.bodyParts ?? []) && exercises.length > 0
+  useEffect(
+    () => () => {
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current)
+      }
+    },
+    [],
+  )
+
+  const scheduleReset = () => {
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current)
+    }
+
+    resetTimerRef.current = window.setTimeout(() => {
+      setSaveState("idle")
+      setSaveMessage(null)
+    }, 2500)
+  }
+
+  const hasRoutine = exercises.length > 0
   const exerciseGroups = useMemo(() => groupExerciseRecords(exercises), [exercises])
 
   const toggleSet = (exerciseId: string, setIndex: number) => {
@@ -184,10 +496,62 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
         ? `다음은 ${remaining === totalSets ? "첫 세트" : "남은 세트"}부터 기록하세요`
         : "기록을 저장하면 오늘 운동이 정리됩니다"
       : "오늘은 기록할 운동이 없습니다"
+  const bodyPartLabel = hasWorkoutBodyParts(todayRoutine?.bodyParts ?? [])
+    ? formatBodyParts(todayRoutine.bodyParts)
+    : hasRoutine
+      ? "서버 기준 오늘 운동"
+      : ""
+  const topLevelError = todayWorkoutQuery.error
+    ? getReadableApiError(todayWorkoutQuery.error, "오늘 운동을 불러오지 못했습니다.")
+    : null
+  const isSaving = saveTodayWorkoutMutation.isPending
 
-  const handleSave = () => {
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    if (!token) {
+      setSaveState("error")
+      setSaveMessage("로그인 후 오늘 운동을 저장할 수 있습니다.")
+      scheduleReset()
+      return
+    }
+
+    let nextExercises = exercises
+    let payloads = buildWorkoutSetUpdates(nextExercises)
+
+    if (payloads.length === 0) {
+      try {
+        const refreshedTodayWorkout = await todayWorkoutQuery.refetch()
+        nextExercises = hydrateExercisesWithTodayWorkout(exercises, refreshedTodayWorkout.data)
+        setExercises(nextExercises)
+        queryClient.setQueryData(["todayWorkout", token], refreshedTodayWorkout.data ?? null)
+        payloads = buildWorkoutSetUpdates(nextExercises)
+      } catch (error) {
+        setSaveState("error")
+        setSaveMessage(getReadableApiError(error, "오늘 운동 세트를 다시 불러오지 못했습니다."))
+        scheduleReset()
+        return
+      }
+    }
+
+    if (payloads.length === 0) {
+      setSaveState("error")
+      setSaveMessage("백엔드에서 오늘 운동 세트를 아직 생성하지 않았습니다. /me/workouts/today/ 응답에 sets가 내려와야 저장할 수 있습니다.")
+      scheduleReset()
+      return
+    }
+
+    setSaveState("saving")
+    setSaveMessage(null)
+
+    try {
+      await saveTodayWorkoutMutation.mutateAsync(payloads)
+      setSaveState("success")
+      setSaveMessage("오늘 운동 기록을 서버에 저장했습니다.")
+      scheduleReset()
+    } catch (error) {
+      setSaveState("error")
+      setSaveMessage(getReadableApiError(error, "오늘 운동 저장에 실패했습니다."))
+      scheduleReset()
+    }
   }
 
   if (!hasRoutine) {
@@ -204,10 +568,16 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
         <div className="px-4 pb-6">
           <div className="rounded-[24px] border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-8 text-center">
             <p className="text-[18px] font-bold text-[#191F28]">
-              {isRestDay(todayRoutine?.bodyParts ?? []) ? "오늘은 휴식일입니다" : "오늘 루틴이 비어 있습니다"}
+              {token && todayWorkoutQuery.isLoading
+                ? "오늘 운동을 불러오는 중입니다"
+                : isRestDay(todayRoutine?.bodyParts ?? [])
+                  ? "오늘은 휴식일입니다"
+                  : "오늘 루틴이 비어 있습니다"}
             </p>
             <p className="mt-2 text-[13px] leading-6 text-[#8B95A1]">
-              루틴 탭에서 오늘 운동을 추가하면 이 화면에서 바로 기록할 수 있습니다
+              {topLevelError
+                ? topLevelError
+                : "루틴 탭에서 오늘 운동을 추가하면 이 화면에서 바로 기록할 수 있습니다"}
             </p>
           </div>
         </div>
@@ -224,8 +594,17 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
             <span className="text-[26px] font-bold tracking-tight text-[#191F28]">{dateStr}</span>
             <span className="text-[15px] text-[#8B95A1]">{dayStr}</span>
           </div>
-          <p className="mt-1.5 text-[13px] text-[#6B7684]">{formatBodyParts(todayRoutine.bodyParts)}</p>
+          {bodyPartLabel ? <p className="mt-1.5 text-[13px] text-[#6B7684]">{bodyPartLabel}</p> : null}
         </div>
+
+        {topLevelError ? (
+          <div className="px-4 pb-3">
+            <div className="rounded-[18px] border border-[#F5C2C7] bg-[#FFF5F6] px-4 py-3">
+              <p className="text-[12px] font-semibold text-[#D14343]">불러오기 오류</p>
+              <p className="mt-1 text-[13px] text-[#6B7684]">{topLevelError}</p>
+            </div>
+          </div>
+        ) : null}
 
         <div className="px-4 mb-4">
           <div className="rounded-[26px] border border-[#E5E8EB] bg-[#FFFFFF] p-4">
@@ -287,6 +666,7 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
           {exerciseGroups.map((group) => {
             const primaryExercise = group.records[0]
             const profile = getExerciseMetricProfile(primaryExercise.machineId)
+            const isCompletionOnly = profile.trackingMode === "completionOnly"
             const sanitizeMetricValue =
               profile.trackingMode === "singleSession" ? sanitizeNonNegativeDecimalInput : sanitizePositiveIntegerInput
             const metricInputMode = profile.trackingMode === "singleSession" ? "decimal" : "numeric"
@@ -443,13 +823,13 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
                       <p className="text-[12px] text-[#8B95A1]">목표 {targetSummary}</p>
                     </div>
                   </div>
-                  <div className="ml-2 shrink-0 text-right">
-                    <p className={`text-[12px] font-semibold ${isDone ? "text-[#2CB52C]" : "text-[#3182F6]"}`}>
-                      {profile.trackingMode === "setBased" ? `${doneCount}/${exercise.completions.length}` : isDone ? "완료" : "대기"}
-                    </p>
-                    <p className="mt-1 text-[11px] text-[#8B95A1]">{isExpanded ? "세부 닫기" : "세부 기록"}</p>
-                  </div>
-                </button>
+                    <div className="ml-2 shrink-0 text-right">
+                      <p className={`text-[12px] font-semibold ${isDone ? "text-[#2CB52C]" : "text-[#3182F6]"}`}>
+                        {profile.trackingMode === "setBased" ? `${doneCount}/${exercise.completions.length}` : isDone ? "완료" : "대기"}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#8B95A1]">{isExpanded ? "세부 닫기" : "세부 기록"}</p>
+                    </div>
+                  </button>
 
                 {profile.trackingMode === "setBased" ? (
                   <div className="flex flex-wrap gap-2 px-4 pb-3">
@@ -461,7 +841,7 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
                             ? "bg-[#3182F6] text-white"
                             : index === nextPendingSetIndex
                               ? "border-2 border-[#3182F6] bg-[#EBF3FE] text-[#3182F6]"
-                            : "border border-[#E5E8EB] bg-[#F8FAFC] text-[#8B95A1]"
+                              : "border border-[#E5E8EB] bg-[#F8FAFC] text-[#8B95A1]"
                         }`}
                         onClick={() => toggleSet(exercise.id, index)}
                         type="button"
@@ -506,6 +886,13 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
                           ))}
                         </div>
                       </>
+                    ) : isCompletionOnly ? (
+                      <div className="rounded-xl bg-[#F8FAFC] px-3 py-3">
+                        <p className="text-[12px] font-semibold text-[#4E5968]">완료 체크형 운동</p>
+                        <p className="mt-1 text-[12px] leading-5 text-[#8B95A1]">
+                          세트 입력 없이 오늘 했는지만 체크하면 저장됩니다.
+                        </p>
+                      </div>
                     ) : (
                       <>
                         <p className="mb-2 text-[12px] font-medium text-[#8B95A1]">{getExerciseMetricHint(exercise.machineId)}</p>
@@ -543,14 +930,24 @@ export default function TodayScreen({ routines }: { routines: RoutineMap }) {
       </div>
 
       <div className="border-t border-[#EEF1F4] bg-[rgba(255,255,255,0.96)] px-4 py-3 backdrop-blur">
+        {saveMessage ? (
+          <p className={`mb-2 text-[12px] font-medium ${saveState === "error" ? "text-[#D14343]" : "text-[#4E5968]"}`}>{saveMessage}</p>
+        ) : null}
         <button
           className={`w-full rounded-2xl py-4 text-[15px] font-semibold text-white transition-all active:opacity-90 ${
-            saved ? "bg-[#2CB52C]" : "bg-[#191F28]"
+            saveState === "success"
+              ? "bg-[#2CB52C]"
+              : saveState === "error"
+                ? "bg-[#D14343]"
+                : isSaving
+                  ? "bg-[#3182F6]"
+                  : "bg-[#191F28]"
           }`}
+          disabled={isSaving}
           onClick={handleSave}
           type="button"
         >
-          {saved ? "저장 완료!" : "오늘 기록 저장"}
+          {saveState === "success" ? "저장 완료!" : isSaving ? "저장 중..." : "오늘 기록 저장"}
         </button>
       </div>
     </div>
