@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createProteinLog, deleteMealLog, deleteProteinLog, fetchMealOverview, fetchProteinOverview, fetchSchoolLunch, saveSchoolLunchSelection } from "@/lib/api"
 import { getReadableApiError } from "@/lib/api-client"
-import type { ApiSchoolMealSelection } from "@/lib/api-types"
+import type { ApiSchoolMealSelection, ApiSchoolMealType } from "@/lib/api-types"
 import {
   QUICK_PROTEIN_ITEMS,
   createInitialQuickProteinValues,
@@ -18,6 +18,7 @@ import { ProteinScreenSkeleton } from "./loading-skeletons"
 
 const DEFAULT_QUICK_PROTEIN_VALUES = createInitialQuickProteinValues()
 const QUICK_PROTEIN_MAX = 30
+const SCHOOL_MEAL_ORDER: ApiSchoolMealType[] = ["breakfast", "lunch", "dinner"]
 
 const SCHOOL_SELECTION_LABELS: Record<ApiSchoolMealSelection, string> = {
   none: "안 먹음",
@@ -74,6 +75,24 @@ function formatTimeLabel(value: string | undefined, fallbackDate: string) {
   })
 }
 
+function normalizeSchoolMealType(value: string | undefined): ApiSchoolMealType {
+  if (value === "breakfast" || value === "dinner") {
+    return value
+  }
+
+  return "lunch"
+}
+
+function getNextSchoolMealType(mealType: ApiSchoolMealType) {
+  const currentIndex = SCHOOL_MEAL_ORDER.indexOf(mealType)
+
+  if (currentIndex < 0 || currentIndex === SCHOOL_MEAL_ORDER.length - 1) {
+    return null
+  }
+
+  return SCHOOL_MEAL_ORDER[currentIndex + 1]
+}
+
 export default function ProteinScreen({
   profile,
   proteinState,
@@ -90,6 +109,7 @@ export default function ProteinScreen({
   const [customInput, setCustomInput] = useState("")
   const [customG, setCustomG] = useState("")
   const [schoolSelections, setSchoolSelections] = useState<Record<string, ApiSchoolMealSelection>>({})
+  const [activeMealType, setActiveMealType] = useState<ApiSchoolMealType | null>(null)
   const { quickCounts } = proteinState
   const quickProteinValues = {
     ...DEFAULT_QUICK_PROTEIN_VALUES,
@@ -107,8 +127,8 @@ export default function ProteinScreen({
     enabled: Boolean(token),
   })
   const schoolLunchQuery = useQuery({
-    queryKey: ["schoolLunch", token],
-    queryFn: () => fetchSchoolLunch(token as string),
+    queryKey: ["schoolLunch", token, activeMealType ?? "auto"],
+    queryFn: () => fetchSchoolLunch(token as string, activeMealType),
     enabled: Boolean(token),
   })
 
@@ -135,7 +155,7 @@ export default function ProteinScreen({
         return accumulator
       }, {}),
     )
-  }, [schoolLunchQuery.data?.date])
+  }, [schoolLunchQuery.data?.date, schoolLunchQuery.data?.meal_type])
 
   const invalidateOverviewQueries = () =>
     Promise.all([
@@ -164,7 +184,7 @@ export default function ProteinScreen({
       }
 
       const normalizedMealType =
-        schoolLunchQuery.data.meal_type === "breakfast" || schoolLunchQuery.data.meal_type === "dinner" ? schoolLunchQuery.data.meal_type : "lunch"
+        normalizeSchoolMealType(schoolLunchQuery.data.meal_type)
 
       return saveSchoolLunchSelection(token as string, {
         date: schoolLunchQuery.data.date,
@@ -277,7 +297,13 @@ export default function ProteinScreen({
       return
     }
 
+    const currentMealType = normalizeSchoolMealType(schoolLunch.meal_type)
     await saveSchoolLunchMutation.mutateAsync()
+    const nextMealType = getNextSchoolMealType(currentMealType)
+
+    if (nextMealType) {
+      setActiveMealType(nextMealType)
+    }
   }
 
   const logQuick = async () => {
@@ -404,7 +430,9 @@ export default function ProteinScreen({
           <div className="flex items-center justify-between border-b border-[#E5E8EB] px-4 py-3">
             <div>
               <p className="text-[14px] font-semibold text-[#191F28]">오늘 급식</p>
-              <p className="text-[12px] text-[#8B95A1]">선택 기준 {cafeteriaProtein}g</p>
+              <p className="text-[12px] text-[#8B95A1]">
+                {schoolLunch?.meal_type_label ?? "급식"} · 선택 기준 {cafeteriaProtein}g
+              </p>
             </div>
             <button
               className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${
