@@ -2,18 +2,84 @@ import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
 import { PwaRegister } from "@/components/pwa-register";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_METADATA_BASE, SITE_NAME, SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
 
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: SITE_URL,
+    inLanguage: "ko-KR",
+    description: SITE_DESCRIPTION,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    url: SITE_URL,
+    applicationCategory: "HealthApplication",
+    operatingSystem: "Web",
+    description: SITE_DESCRIPTION,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "KRW",
+    },
+  },
+];
+
 export const metadata: Metadata = {
-  title: "근요일",
-  description: "교내 헬스장 환경에 맞춘 운동 루틴, 기록, 단백질 관리 앱",
-  applicationName: "근요일",
-  keywords: ["근요일", "운동 루틴", "운동 기록", "단백질 관리", "PWA"],
+  metadataBase: SITE_METADATA_BASE,
+  title: {
+    default: SITE_TITLE,
+    template: "%s | 근요일",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: SITE_KEYWORDS,
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: SITE_OG_IMAGE,
+        width: 512,
+        height: 512,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [SITE_OG_IMAGE],
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "근요일",
+    title: SITE_NAME,
   },
   formatDetection: {
     telephone: false,
@@ -43,6 +109,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="ko">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+          type="application/ld+json"
+        />
         <link crossOrigin="" href="https://cdn.jsdelivr.net" rel="preconnect" />
         <link href="https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/subsets/Pretendard-dynamic-subset.css" rel="stylesheet" />
       </head>
