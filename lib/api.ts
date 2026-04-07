@@ -9,6 +9,7 @@ import type {
   ApiRoutine,
   ApiSchoolLunchResponse,
   ApiSchoolMealSelectionSave,
+  ApiSchoolMealType,
   ApiTodayLog,
   ApiTodayWorkoutSync,
   ApiUser,
@@ -272,8 +273,16 @@ export function fetchMealOverview(token: string) {
   })
 }
 
-export function fetchSchoolLunch(token: string) {
-  return apiRequest<ApiSchoolLunchResponse>("/me/meals/school-lunch", {
+export function fetchSchoolLunch(token: string, mealType?: ApiSchoolMealType | null) {
+  const searchParams = new URLSearchParams()
+
+  if (mealType) {
+    searchParams.set("meal_type", mealType)
+  }
+
+  const path = searchParams.size > 0 ? `/me/meals/school-lunch?${searchParams.toString()}` : "/me/meals/school-lunch"
+
+  return apiRequest<ApiSchoolLunchResponse>(path, {
     token,
   })
 }
