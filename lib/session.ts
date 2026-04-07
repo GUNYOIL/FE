@@ -12,6 +12,10 @@ import {
 } from "@/lib/app-config"
 
 export const STORAGE_KEY = "gunyoil-vercel-shell-v2"
+const ACCESS_TOKEN_COOKIE_KEY = "gunyoil_access_token"
+const REFRESH_TOKEN_COOKIE_KEY = "gunyoil_refresh_token"
+const ACCOUNT_EMAIL_COOKIE_KEY = "gunyoil_account_email"
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 export type Account = {
   email: string
@@ -47,6 +51,106 @@ const DEFAULT_PERSISTED_STATE: PersistedState = {
   onboardingDraft: null,
 }
 
+function normalizeAccount(value: unknown): Account | null {
+  if (!value || typeof value !== "object") {
+    return null
+  }
+
+  const candidate = value as Partial<Account>
+  if (typeof candidate.email !== "string" || typeof candidate.accessToken !== "string") {
+    return null
+  }
+
+  return {
+    email: candidate.email,
+    accessToken: candidate.accessToken,
+    refreshToken: typeof candidate.refreshToken === "string" ? candidate.refreshToken : null,
+  }
+}
+
+function getCookieAttributes(maxAge: number) {
+  const attributes = [`Path=/`, `Max-Age=${maxAge}`, `SameSite=Lax`]
+
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    attributes.push("Secure")
+  }
+
+  return attributes.join("; ")
+}
+
+function writeCookie(name: string, value: string, maxAge = COOKIE_MAX_AGE_SECONDS) {
+  if (typeof document === "undefined") {
+    return
+  }
+
+  document.cookie = `${name}=${encodeURIComponent(value)}; ${getCookieAttributes(maxAge)}`
+}
+
+function clearCookie(name: string) {
+  if (typeof document === "undefined") {
+    return
+  }
+
+  document.cookie = `${name}=; ${getCookieAttributes(0)}`
+}
+
+function readCookieMap() {
+  if (typeof document === "undefined") {
+    return new Map<string, string>()
+  }
+
+  return document.cookie.split("; ").reduce((accumulator, pair) => {
+    if (!pair) {
+      return accumulator
+    }
+
+    const separatorIndex = pair.indexOf("=")
+    if (separatorIndex < 0) {
+      return accumulator
+    }
+
+    const key = pair.slice(0, separatorIndex)
+    const value = pair.slice(separatorIndex + 1)
+    accumulator.set(key, decodeURIComponent(value))
+    return accumulator
+  }, new Map<string, string>())
+}
+
+function readPersistedAccountFromCookies() {
+  const cookies = readCookieMap()
+  const email = cookies.get(ACCOUNT_EMAIL_COOKIE_KEY)
+  const accessToken = cookies.get(ACCESS_TOKEN_COOKIE_KEY)
+  const refreshToken = cookies.get(REFRESH_TOKEN_COOKIE_KEY) ?? null
+
+  if (!email || !accessToken) {
+    return null
+  }
+
+  return {
+    email,
+    accessToken,
+    refreshToken,
+  } satisfies Account
+}
+
+function writePersistedAccountToCookies(account: Account | null) {
+  if (!account) {
+    clearCookie(ACCOUNT_EMAIL_COOKIE_KEY)
+    clearCookie(ACCESS_TOKEN_COOKIE_KEY)
+    clearCookie(REFRESH_TOKEN_COOKIE_KEY)
+    return
+  }
+
+  writeCookie(ACCOUNT_EMAIL_COOKIE_KEY, account.email)
+  writeCookie(ACCESS_TOKEN_COOKIE_KEY, account.accessToken)
+
+  if (account.refreshToken) {
+    writeCookie(REFRESH_TOKEN_COOKIE_KEY, account.refreshToken)
+  } else {
+    clearCookie(REFRESH_TOKEN_COOKIE_KEY)
+  }
+}
+
 export function createEmptyOnboardingProfileDraft(): OnboardingProfileDraft {
   return {
     gender: "",
@@ -79,30 +183,22 @@ export function clearPersistedAccount(state: PersistedState): PersistedState {
   return {
     ...state,
     account: null,
+    onboardingData: null,
+    onboarded: false,
   }
+}
+
+export function clearPersistedSession() {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.localStorage.removeItem(STORAGE_KEY)
+  writePersistedAccountToCookies(null)
 }
 
 function isGoalKey(value: unknown): value is GoalKey {
   return GOAL_OPTIONS.some((option) => option.key === value)
-}
-
-function isOnboardingData(value: unknown): value is OnboardingData {
-  if (!value || typeof value !== "object") {
-    return false
-  }
-
-  const candidate = value as Partial<OnboardingData>
-  return Boolean(candidate.profile && candidate.routines)
-}
-
-function normalizeOnboardingData(data: OnboardingData): OnboardingData {
-  return {
-    profile: {
-      ...data.profile,
-      proteinTarget: calculateProteinTarget(data.profile.weight, data.profile.goal),
-    },
-    routines: normalizeRoutineMap(data.routines),
-  }
 }
 
 function isProteinState(value: unknown): value is ProteinState {
@@ -161,42 +257,61 @@ export function toOnboardingData(draft: OnboardingDraft): OnboardingData | null 
   }
 }
 
+export function hasPersistedSessionMarker() {
+  if (typeof window === "undefined") {
+    return false
+  }
+
+  return Boolean(window.localStorage.getItem(STORAGE_KEY))
+}
+
 export function readPersistedState(): PersistedState {
   if (typeof window === "undefined") {
     return DEFAULT_PERSISTED_STATE
   }
 
+  const accountFromCookies = readPersistedAccountFromCookies()
+
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) {
-      return DEFAULT_PERSISTED_STATE
+      if (accountFromCookies) {
+        writePersistedAccountToCookies(null)
+      }
+
+      return {
+        ...DEFAULT_PERSISTED_STATE,
+        account: null,
+      }
     }
 
     const parsed = JSON.parse(raw) as Partial<PersistedState>
-    const account =
-      parsed.account &&
-      typeof parsed.account.email === "string" &&
-      typeof parsed.account.accessToken === "string"
-        ? {
-            email: parsed.account.email,
-            accessToken: parsed.account.accessToken,
-            refreshToken: typeof parsed.account.refreshToken === "string" ? parsed.account.refreshToken : null,
-          }
-        : null
-    const onboardingData = isOnboardingData(parsed.onboardingData) ? normalizeOnboardingData(parsed.onboardingData) : null
+    const legacyAccount = normalizeAccount(parsed.account)
+    const account = accountFromCookies ?? legacyAccount
     const onboardingDraft = normalizeOnboardingDraft(parsed.onboardingDraft)
     const proteinState = isProteinState(parsed.proteinState) ? parsed.proteinState : createInitialProteinState()
 
+    if (!accountFromCookies && legacyAccount) {
+      writePersistedAccountToCookies(legacyAccount)
+
+      const { account: _legacyAccount, ...rest } = parsed
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
+    }
+
     return {
       account,
-      onboardingData,
-      onboarded: Boolean(parsed.onboarded && onboardingData),
+      onboardingData: null,
+      onboarded: Boolean(parsed.onboarded),
       proteinState,
       onboardingDraft,
     }
   } catch {
     window.localStorage.removeItem(STORAGE_KEY)
-    return DEFAULT_PERSISTED_STATE
+    writePersistedAccountToCookies(null)
+    return {
+      ...DEFAULT_PERSISTED_STATE,
+      account: null,
+    }
   }
 }
 
@@ -205,5 +320,13 @@ export function writePersistedState(state: PersistedState) {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  writePersistedAccountToCookies(state.account)
+  const { account: _account, onboardingData: _onboardingData, ...rest } = state
+
+  if (!state.account && !rest.onboardingDraft && !rest.onboarded) {
+    window.localStorage.removeItem(STORAGE_KEY)
+    return
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
 }
