@@ -1,6 +1,8 @@
 "use client"
 
+import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
+import { fetchMyGrass } from "@/lib/api"
 import {
   DAY_META,
   formatBodyParts,
@@ -91,9 +93,11 @@ export default function AppShell({
   proteinState: ProteinState
   setProteinState: Dispatch<SetStateAction<ProteinState>>
 }) {
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<Tab>("오늘")
   const [isRoutineEditing, setIsRoutineEditing] = useState(false)
   const { profile, routines } = onboardingData
+  const token = account?.accessToken ?? null
   const todayKey = getTodayDayKey()
   const todayRoutine = routines[todayKey]
   const goalOption = getGoalOption(profile.goal)
@@ -129,6 +133,38 @@ export default function AppShell({
   )
 
   const activeMeta = tabMeta[activeTab]
+
+  const prefetchTab = (tab: Tab) => {
+    if (tab !== "잔디" || !token) {
+      return
+    }
+
+    void queryClient.prefetchQuery({
+      queryKey: ["grass", token],
+      queryFn: () => fetchMyGrass(token),
+      staleTime: 0,
+    })
+  }
+
+  const handleTabChange = async (tab: Tab) => {
+    if (tab === activeTab) {
+      return
+    }
+
+    if (tab === "잔디" && token) {
+      try {
+        await queryClient.fetchQuery({
+          queryKey: ["grass", token],
+          queryFn: () => fetchMyGrass(token),
+          staleTime: 0,
+        })
+      } catch {
+        // Let the destination screen render its own error state if the refresh fails.
+      }
+    }
+
+    setActiveTab(tab)
+  }
 
   if (isRoutineEditing) {
     return (
@@ -171,11 +207,11 @@ export default function AppShell({
 
       <main className="relative flex-1 overflow-hidden bg-[#F7F8FA]">
         <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-          {activeTab === "오늘" ? <TodayScreen routines={routines} token={account?.accessToken ?? null} /> : null}
+          {activeTab === "오늘" ? <TodayScreen routines={routines} token={token} /> : null}
           {activeTab === "루틴" ? <RoutineScreen onEdit={() => setIsRoutineEditing(true)} routines={routines} /> : null}
-          {activeTab === "잔디" ? <GrassScreen token={account?.accessToken ?? null} /> : null}
+          {activeTab === "잔디" ? <GrassScreen token={token} /> : null}
           {activeTab === "단백질" ? (
-            <ProteinScreen profile={profile} proteinState={proteinState} setProteinState={setProteinState} token={account?.accessToken ?? null} />
+            <ProteinScreen profile={profile} proteinState={proteinState} setProteinState={setProteinState} token={token} />
           ) : null}
         </div>
       </main>
@@ -191,7 +227,12 @@ export default function AppShell({
               <button
                 key={tab.id}
                 className="flex flex-col items-center justify-center gap-1 py-2.5 transition-all"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  void handleTabChange(tab.id)
+                }}
+                onFocus={() => prefetchTab(tab.id)}
+                onMouseEnter={() => prefetchTab(tab.id)}
+                onTouchStart={() => prefetchTab(tab.id)}
                 type="button"
               >
                 <span className={`h-1 w-8 rounded-full ${isActive ? "bg-[#3182F6]" : "bg-transparent"}`} />

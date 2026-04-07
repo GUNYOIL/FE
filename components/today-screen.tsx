@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { fetchTodayWorkout, saveTodayWorkoutSet } from "@/lib/api"
+import { fetchTodayWorkout, saveTodayWorkoutSet, syncTodayWorkout } from "@/lib/api"
 import { getReadableApiError } from "@/lib/api-client"
 import type { ApiTodayLog, ApiWorkoutSetUpdate } from "@/lib/api-types"
 import {
@@ -397,11 +397,6 @@ export default function TodayScreen({ routines, token }: { routines: RoutineMap;
   })
   const saveTodayWorkoutMutation = useMutation({
     mutationFn: (payloads: ApiWorkoutSetUpdate[]) => Promise.all(payloads.map((payload) => saveTodayWorkoutSet(token as string, payload))),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["todayWorkout", token] }),
-        queryClient.invalidateQueries({ queryKey: ["grass", token] }),
-      ]),
   })
 
   const todayWorkout = todayWorkoutQuery.data ?? null
@@ -544,6 +539,13 @@ export default function TodayScreen({ routines, token }: { routines: RoutineMap;
 
     try {
       await saveTodayWorkoutMutation.mutateAsync(payloads)
+      await syncTodayWorkout(token, {
+        is_completed: payloads.length > 0 && payloads.every((payload) => payload.is_completed),
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["todayWorkout", token] }),
+        queryClient.invalidateQueries({ queryKey: ["grass", token] }),
+      ])
       setSaveState("success")
       setSaveMessage("오늘 운동 기록을 서버에 저장했습니다.")
       scheduleReset()
