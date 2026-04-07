@@ -57,6 +57,19 @@ export function Trash2Icon(props: IconProps) {
   );
 }
 
+export function GripVerticalIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <circle cx="9" cy="6.5" fill="currentColor" r="1.2" />
+      <circle cx="9" cy="12" fill="currentColor" r="1.2" />
+      <circle cx="9" cy="17.5" fill="currentColor" r="1.2" />
+      <circle cx="15" cy="6.5" fill="currentColor" r="1.2" />
+      <circle cx="15" cy="12" fill="currentColor" r="1.2" />
+      <circle cx="15" cy="17.5" fill="currentColor" r="1.2" />
+    </BaseIcon>
+  );
+}
+
 export function PlusIcon(props: IconProps) {
   return (
     <BaseIcon {...props}>
