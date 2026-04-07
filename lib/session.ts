@@ -15,7 +15,8 @@ export const STORAGE_KEY = "gunyoil-vercel-shell-v2"
 
 export type Account = {
   email: string
-  password: string
+  accessToken: string
+  refreshToken: string | null
 }
 
 export type OnboardingProfileDraft = {
@@ -72,6 +73,13 @@ function hasSpecialCharacter(value: string) {
 
 export function isValidPassword(password: string) {
   return password.length >= 6 && hasSpecialCharacter(password)
+}
+
+export function clearPersistedAccount(state: PersistedState): PersistedState {
+  return {
+    ...state,
+    account: null,
+  }
 }
 
 function isGoalKey(value: unknown): value is GoalKey {
@@ -168,8 +176,12 @@ export function readPersistedState(): PersistedState {
     const account =
       parsed.account &&
       typeof parsed.account.email === "string" &&
-      typeof parsed.account.password === "string"
-        ? parsed.account
+      typeof parsed.account.accessToken === "string"
+        ? {
+            email: parsed.account.email,
+            accessToken: parsed.account.accessToken,
+            refreshToken: typeof parsed.account.refreshToken === "string" ? parsed.account.refreshToken : null,
+          }
         : null
     const onboardingData = isOnboardingData(parsed.onboardingData) ? normalizeOnboardingData(parsed.onboardingData) : null
     const onboardingDraft = normalizeOnboardingDraft(parsed.onboardingDraft)
