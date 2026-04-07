@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   DAY_META,
   formatExerciseMetricSummary,
@@ -41,10 +42,12 @@ export default function RoutineScreen({
   const configuredDays = daySummaries.filter((item) => item.hasRoutine)
   const restDays = daySummaries.filter((item) => item.isRest)
   const emptyDays = daySummaries.filter((item) => !item.hasRoutine)
-  const focusDay = (
-    daySummaries.find((item) => item.isToday && item.hasRoutine)?.day ?? configuredDays[0]?.day ?? DAY_META[0]
-  ) as (typeof DAY_META)[number]
-  const focusRoutine = routines[focusDay.key]
+  const initialSelectedDayKey =
+    daySummaries.find((item) => item.isToday && item.hasRoutine)?.day.key ?? configuredDays[0]?.day.key ?? DAY_META[0].key
+  const [selectedDayKey, setSelectedDayKey] = useState(initialSelectedDayKey)
+  const selectedDaySummary = daySummaries.find((item) => item.day.key === selectedDayKey) ?? daySummaries[0]
+  const focusDay = selectedDaySummary.day
+  const focusRoutine = selectedDaySummary.routine
   const totalExercises = configuredDays.reduce((sum, item) => sum + item.routine.exercises.length, 0)
   const totalSupersets = daySummaries.reduce((sum, item) => sum + item.supersetCount, 0)
   const routineStatusLabel = hasWorkoutBodyParts(focusRoutine.bodyParts)
@@ -122,20 +125,23 @@ export default function RoutineScreen({
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {daySummaries.map(({ day, hasRoutine, isRest, isToday, routine }) => {
             const dayPreview = getRoutineDayCardPreview(routine.bodyParts)
+            const isSelected = day.key === selectedDayKey
 
             return (
-              <div
+              <button
                 key={day.key}
-                className={`flex w-[84px] flex-shrink-0 flex-col gap-2 rounded-[20px] border px-2.5 py-3 ${
-                  isToday
+                className={`flex w-[84px] flex-shrink-0 flex-col gap-2 rounded-[20px] border px-2.5 py-3 text-left transition-colors ${
+                  isSelected
                     ? "border-[#3182F6] bg-[#EBF3FE]"
                     : hasRoutine
                       ? "border-[#DCE7FB] bg-[#F8FBFF]"
                       : "border-[#E5E8EB] bg-[#F8FAFC]"
                 }`}
+                onClick={() => setSelectedDayKey(day.key)}
+                type="button"
               >
                 <div className="flex items-start justify-between gap-1">
-                  <span className={`text-[13px] font-semibold ${isToday ? "text-[#3182F6]" : "text-[#191F28]"}`}>
+                  <span className={`text-[13px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#191F28]"}`}>
                     {day.label}
                   </span>
                   {isToday ? (
@@ -145,7 +151,7 @@ export default function RoutineScreen({
                   ) : null}
                 </div>
                 <div className="min-h-[42px]">
-                  <p className={`truncate text-[11px] font-semibold ${isToday ? "text-[#3182F6]" : "text-[#4E5968]"}`}>
+                  <p className={`truncate text-[11px] font-semibold ${isSelected ? "text-[#3182F6]" : "text-[#4E5968]"}`}>
                     {dayPreview.label}
                   </p>
                   {dayPreview.extraLabel ? (
@@ -156,16 +162,16 @@ export default function RoutineScreen({
                 </div>
                 <span
                   className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    isToday
+                    isSelected
                       ? "bg-[#3182F6] text-white"
                       : hasRoutine
                         ? "bg-[#EAF7EC] text-[#2CB52C]"
                         : "bg-[#EEF2F6] text-[#8B95A1]"
                   }`}
                 >
-                  {isToday ? "선택 중" : hasRoutine ? (isRest ? "휴식" : "운동") : "비어있음"}
+                  {isSelected ? "선택 중" : hasRoutine ? (isRest ? "휴식" : "운동") : "비어있음"}
                 </span>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -175,13 +181,14 @@ export default function RoutineScreen({
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-[13px] font-semibold text-[#4E5968]">요일별 상세</p>
-            <p className="mt-1 text-[12px] text-[#8B95A1]">각 요일의 부위, 운동 수, 슈퍼세트 구성을 한 번에 확인할 수 있습니다</p>
+            <p className="mt-1 text-[12px] text-[#8B95A1]">상단 카드를 누르면 해당 요일의 부위, 운동 수, 슈퍼세트 구성을 볼 수 있습니다</p>
           </div>
           <span className="shrink-0 whitespace-nowrap rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[11px] font-semibold text-[#6B7684]">
-            오늘 포함 {configuredDays.length}일
+            {focusDay.full}
           </span>
         </div>
-        {daySummaries.map(({ day, routine, exerciseGroups, hasRoutine, isRest, isToday, supersetCount }) => {
+        {(() => {
+          const { day, routine, exerciseGroups, hasRoutine, isRest, isToday, supersetCount } = selectedDaySummary
           const isEmpty = !hasRoutine
           const exerciseCount = routine.exercises.length
 
@@ -287,7 +294,7 @@ export default function RoutineScreen({
               )}
             </div>
           )
-        })}
+        })()}
       </div>
     </div>
   )

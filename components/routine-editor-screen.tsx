@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type DragEvent, type TouchEvent } from "react"
 import {
   DAY_META,
   MACHINE_CATEGORIES,
@@ -8,6 +8,7 @@ import {
   canToggleSupersetPair,
   createEmptyRoutineMap,
   createExerciseId,
+  doesMachineMatchCategory,
   formatExerciseMetricSummary,
   formatBodyParts,
   formatSupersetExerciseNames,
@@ -28,6 +29,7 @@ import {
   isRestDay,
   isSupersetPair,
   normalizeExerciseSupersets,
+  reorderExerciseDrafts,
   toggleSupersetPair,
   toggleBodyPartSelection,
   type DayKey,
@@ -38,7 +40,7 @@ import {
   type UserProfile,
 } from "@/lib/app-config"
 import { sanitizeNonNegativeDecimalInput, sanitizePositiveIntegerInput } from "@/lib/numeric-input"
-import { SearchIcon, Trash2Icon, XIcon } from "./icons"
+import { GripVerticalIcon, SearchIcon, Trash2Icon, XIcon } from "./icons"
 import MachineVisual from "./machine-visual"
 
 type RoutineStage = "focus" | "exercise" | "details"
@@ -78,6 +80,8 @@ export default function RoutineEditorScreen({
   const [routineStage, setRoutineStage] = useState<RoutineStage>("focus")
   const [machineSearch, setMachineSearch] = useState("")
   const [machineCategory, setMachineCategory] = useState<MachineCategoryKey>("all")
+  const [draggedExerciseId, setDraggedExerciseId] = useState<string | null>(null)
+  const [dragOverExerciseId, setDragOverExerciseId] = useState<string | null>(null)
 
   useEffect(() => {
     const initialDay = getInitialDay(routines)
@@ -117,6 +121,7 @@ export default function RoutineEditorScreen({
   const canSave = workingDays.length > 0 && incompleteDays.length === 0
   const selectedDayExerciseCount = selectedDayRoutine.exercises.length
   const selectedDayCompletedExercises = selectedDayRoutine.exercises.filter(isExerciseConfigured).length
+  const canReorderExercises = selectedDayExerciseCount > 1
   const selectedDaySupersetPairCount = new Set(
     selectedDayRoutine.exercises.flatMap((exercise) => (exercise.supersetGroupId ? [exercise.supersetGroupId] : [])),
   ).size
@@ -170,12 +175,12 @@ export default function RoutineEditorScreen({
   const prioritizedMachines = useMemo(() => {
     return MACHINES.filter((machine) => {
       const matchesSearch = machine.name.toLowerCase().includes(machineSearch.toLowerCase())
-      const matchesCategory = machineCategory === "all" || machine.category === machineCategory
+      const matchesCategory = doesMachineMatchCategory(machine.id, machineCategory, machine.category)
       return matchesSearch && matchesCategory
     }).sort((left, right) => {
       const preferredCategories = getPreferredMachineCategories(selectedDayRoutine.bodyParts)
-      const leftRank = preferredCategories.includes(left.category) ? 0 : 1
-      const rightRank = preferredCategories.includes(right.category) ? 0 : 1
+      const leftRank = preferredCategories.some((category) => doesMachineMatchCategory(left.id, category, left.category)) ? 0 : 1
+      const rightRank = preferredCategories.some((category) => doesMachineMatchCategory(right.id, category, right.category)) ? 0 : 1
       return leftRank - rightRank
     })
   }, [machineCategory, machineSearch, selectedDayRoutine.bodyParts])
@@ -187,6 +192,11 @@ export default function RoutineEditorScreen({
 
     setMachineCategory(getPrimaryMachineCategory(selectedDayRoutine.bodyParts))
   }, [routineStage, selectedDay, selectedDayRoutine.bodyParts])
+
+  useEffect(() => {
+    setDraggedExerciseId(null)
+    setDragOverExerciseId(null)
+  }, [routineStage, selectedDay])
 
   const initialSignature = useMemo(() => JSON.stringify(routines), [routines])
   const draftSignature = useMemo(() => JSON.stringify(draftRoutines), [draftRoutines])
@@ -313,6 +323,94 @@ export default function RoutineEditorScreen({
         exercises: toggleSupersetPair(previous[dayKey].exercises, index, dayKey),
       },
     }))
+  }
+
+  const resetExerciseDragState = () => {
+    setDraggedExerciseId(null)
+    setDragOverExerciseId(null)
+  }
+
+  const reorderExercises = (dayKey: DayKey, sourceExerciseId: string, targetExerciseId: string) => {
+    if (sourceExerciseId === targetExerciseId) {
+      return
+    }
+
+    setDraftRoutines((previous) => {
+      const exercises = previous[dayKey].exercises
+      const sourceIndex = exercises.findIndex((exercise) => exercise.id === sourceExerciseId)
+      const targetIndex = exercises.findIndex((exercise) => exercise.id === targetExerciseId)
+
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+        return previous
+      }
+
+      return {
+        ...previous,
+        [dayKey]: {
+          ...previous[dayKey],
+          exercises: reorderExerciseDrafts(exercises, sourceIndex, targetIndex),
+        },
+      }
+    })
+  }
+
+  const handleExerciseDragStart = (event: DragEvent<HTMLButtonElement>, exerciseId: string) => {
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", exerciseId)
+    setDraggedExerciseId(exerciseId)
+    setDragOverExerciseId(null)
+  }
+
+  const handleExerciseDragOver = (event: DragEvent<HTMLDivElement>, exerciseId: string) => {
+    if (!draggedExerciseId || draggedExerciseId === exerciseId) {
+      return
+    }
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+
+    if (dragOverExerciseId !== exerciseId) {
+      setDragOverExerciseId(exerciseId)
+    }
+  }
+
+  const handleExerciseDrop = (event: DragEvent<HTMLDivElement>, dayKey: DayKey, exerciseId: string) => {
+    event.preventDefault()
+
+    if (draggedExerciseId && draggedExerciseId !== exerciseId) {
+      reorderExercises(dayKey, draggedExerciseId, exerciseId)
+    }
+
+    resetExerciseDragState()
+  }
+
+  const handleExerciseTouchStart = (exerciseId: string) => {
+    setDraggedExerciseId(exerciseId)
+    setDragOverExerciseId(null)
+  }
+
+  const handleExerciseTouchMove = (event: TouchEvent<HTMLButtonElement>) => {
+    if (!draggedExerciseId) {
+      return
+    }
+
+    const touch = event.touches[0]
+    if (!touch) {
+      return
+    }
+
+    event.preventDefault()
+    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>("[data-exercise-id]")
+    const nextExerciseId = targetElement?.dataset.exerciseId ?? null
+    setDragOverExerciseId(nextExerciseId && nextExerciseId !== draggedExerciseId ? nextExerciseId : null)
+  }
+
+  const handleExerciseTouchEnd = (dayKey: DayKey) => {
+    if (draggedExerciseId && dragOverExerciseId && draggedExerciseId !== dragOverExerciseId) {
+      reorderExercises(dayKey, draggedExerciseId, dragOverExerciseId)
+    }
+
+    resetExerciseDragState()
   }
 
   const handleDismiss = () => {
@@ -681,7 +779,9 @@ export default function RoutineEditorScreen({
                     <p className="text-[12px] font-semibold text-[#8B95A1]">선택한 운동</p>
                     <p className="mt-1 text-[12px] text-[#4E5968]">
                       {selectedDayExerciseCount > 0
-                        ? `${selectedDayCompletedExercises}/${selectedDayExerciseCount}개가 다음 입력 단계로 이어집니다`
+                        ? `${selectedDayCompletedExercises}/${selectedDayExerciseCount}개가 다음 입력 단계로 이어집니다${
+                            canReorderExercises ? " · 핸들을 드래그해 순서를 바꿀 수 있습니다" : ""
+                          }`
                         : "운동을 추가하면 아래에서 슈퍼세트와 입력 상태를 바로 확인할 수 있습니다"}
                     </p>
                   </div>
@@ -694,13 +794,24 @@ export default function RoutineEditorScreen({
                     {selectedDayRoutine.exercises.map((exercise, index) => {
                       const isPairedWithPrevious = isSupersetPair(selectedDayRoutine.exercises[index - 1], exercise)
                       const canTogglePair = canToggleSupersetPair(selectedDayRoutine.exercises, index)
+                      const isDragSource = draggedExerciseId === exercise.id
+                      const isDropTarget = dragOverExerciseId === exercise.id && !isDragSource
 
                       return (
                         <div
                           key={exercise.id}
-                          className={`rounded-xl border px-3 py-3 ${
-                            exercise.supersetGroupId ? "border-[#DCE7FB] bg-[#F7FBFF]" : "border-[#E5E8EB] bg-[#FFFFFF]"
+                          className={`rounded-xl border px-3 py-3 transition-colors ${
+                            isDropTarget
+                              ? "border-[#B7D1FA] bg-[#EEF5FF]"
+                              : exercise.supersetGroupId
+                                ? "border-[#DCE7FB] bg-[#F7FBFF]"
+                                : "border-[#E5E8EB] bg-[#FFFFFF]"
                           }`}
+                          data-exercise-id={exercise.id}
+                          onDragOver={(event) => handleExerciseDragOver(event, exercise.id)}
+                          onDrop={(event) => handleExerciseDrop(event, selectedDay, exercise.id)}
+                          onDragEnd={resetExerciseDragState}
+                          style={{ opacity: isDragSource ? 0.68 : 1 }}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-3">
@@ -722,13 +833,30 @@ export default function RoutineEditorScreen({
                                 ) : null}
                               </div>
                             </div>
-                            <button
-                              className="rounded-full p-1 text-[#8B95A1]"
-                              onClick={() => removeExercise(selectedDay, exercise.id)}
-                              type="button"
-                            >
-                              <Trash2Icon size={16} />
-                            </button>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button
+                                aria-label={`${exercise.machineName} 순서 변경`}
+                                className="rounded-full p-1 text-[#8B95A1] disabled:opacity-30"
+                                disabled={!canReorderExercises}
+                                draggable={canReorderExercises}
+                                onDragStart={(event) => handleExerciseDragStart(event, exercise.id)}
+                                onDragEnd={resetExerciseDragState}
+                                onTouchStart={() => handleExerciseTouchStart(exercise.id)}
+                                onTouchMove={handleExerciseTouchMove}
+                                onTouchEnd={() => handleExerciseTouchEnd(selectedDay)}
+                                onTouchCancel={resetExerciseDragState}
+                                type="button"
+                              >
+                                <GripVerticalIcon size={16} />
+                              </button>
+                              <button
+                                className="rounded-full p-1 text-[#8B95A1]"
+                                onClick={() => removeExercise(selectedDay, exercise.id)}
+                                type="button"
+                              >
+                                <Trash2Icon size={16} />
+                              </button>
+                            </div>
                           </div>
                           {canTogglePair ? (
                             <button
@@ -779,6 +907,7 @@ export default function RoutineEditorScreen({
                   <div className="mt-4 flex flex-col gap-3">
                     {selectedDayRoutine.exercises.map((exercise) => {
                       const profile = getExerciseMetricProfile(exercise.machineId)
+                      const isCompletionOnly = profile.trackingMode === "completionOnly"
                       const sanitizeMetricValue =
                         profile.trackingMode === "singleSession"
                           ? sanitizeNonNegativeDecimalInput
@@ -815,37 +944,46 @@ export default function RoutineEditorScreen({
                             </button>
                           </div>
 
-                          <div className="mt-3 flex flex-col gap-2">
-                            {profile.fields.map((item) => (
-                              <label
-                                key={item.field}
-                                className="flex items-center justify-between gap-3 rounded-xl bg-[#FFFFFF] px-3 py-3"
-                              >
-                                <span className="text-[13px] font-medium text-[#4E5968]">{item.label}</span>
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    className="w-20 bg-transparent text-right text-[14px] font-semibold text-[#191F28] outline-none"
-                                    inputMode={metricInputMode}
-                                    onChange={(event) =>
-                                      updateExercise(
-                                        selectedDay,
-                                        exercise.id,
-                                        item.field,
-                                        sanitizeMetricValue(event.target.value),
-                                      )
-                                    }
-                                    placeholder={item.placeholder}
-                                    pattern={metricPattern}
-                                    type="text"
-                                    value={exercise[item.field]}
-                                  />
-                                  <span className="text-[11px] text-[#8B95A1]">{item.unit}</span>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
+                          {isCompletionOnly ? (
+                            <div className="mt-3 rounded-xl bg-[#FFFFFF] px-3 py-3">
+                              <p className="text-[12px] font-semibold text-[#4E5968]">완료 체크형 운동</p>
+                              <p className="mt-1 text-[12px] leading-5 text-[#8B95A1]">
+                                세트 입력 없이 오늘 페이지에서 했는지만 체크합니다.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-3 flex flex-col gap-2">
+                              {profile.fields.map((item) => (
+                                <label
+                                  key={item.field}
+                                  className="flex items-center justify-between gap-3 rounded-xl bg-[#FFFFFF] px-3 py-3"
+                                >
+                                  <span className="text-[13px] font-medium text-[#4E5968]">{item.label}</span>
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      className="w-20 bg-transparent text-right text-[14px] font-semibold text-[#191F28] outline-none"
+                                      inputMode={metricInputMode}
+                                      onChange={(event) =>
+                                        updateExercise(
+                                          selectedDay,
+                                          exercise.id,
+                                          item.field,
+                                          sanitizeMetricValue(event.target.value),
+                                        )
+                                      }
+                                      placeholder={item.placeholder}
+                                      pattern={metricPattern}
+                                      type="text"
+                                      value={exercise[item.field]}
+                                    />
+                                    <span className="text-[11px] text-[#8B95A1]">{item.unit}</span>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          )}
 
-                          {profile.presetValues ? (
+                          {!isCompletionOnly && profile.presetValues ? (
                             <div className="mt-2 flex gap-1.5">
                               {profile.presetValues.map((preset) => (
                                 <button

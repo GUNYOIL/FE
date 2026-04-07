@@ -148,6 +148,8 @@ export const MACHINES = [
   { id: "hanging-leg-raise", name: "행잉 레그 레이즈", category: "core", muscle: "복근/고관절" },
   { id: "weighted-sit-up", name: "웨이티드 싯업", category: "core", muscle: "복근" },
   { id: "ab-wheel", name: "ab 롤 아웃", category: "core", muscle: "복근/코어" },
+  { id: "stabilization-training", name: "안정화 트레이닝", category: "core", muscle: "안정화/코어" },
+  { id: "coordination-training", name: "협응력 트레이닝", category: "cardio", muscle: "협응력/전신" },
   { id: "treadmill", name: "런닝머신", category: "cardio", muscle: "전신" },
   { id: "cycle", name: "사이클", category: "cardio", muscle: "하체/심폐" },
   { id: "elliptical", name: "일립티컬", category: "cardio", muscle: "전신" },
@@ -170,8 +172,9 @@ export type ExerciseMetricFieldDefinition = {
 }
 
 export type ExerciseMetricProfile = {
-  trackingMode: "setBased" | "singleSession"
+  trackingMode: "setBased" | "singleSession" | "completionOnly"
   fields: readonly ExerciseMetricFieldDefinition[]
+  defaultValues?: Partial<Record<ExerciseField, string>>
   presetValues?: readonly { label: string; values: Partial<Record<ExerciseField, string>> }[]
 }
 
@@ -396,6 +399,16 @@ const ROWING_PROFILE: ExerciseMetricProfile = {
   ],
 }
 
+const COMPLETION_ONLY_PROFILE: ExerciseMetricProfile = {
+  trackingMode: "completionOnly",
+  fields: [],
+  defaultValues: {
+    weight: "0",
+    reps: "1",
+    sets: "1",
+  },
+}
+
 const EXERCISE_METRIC_PROFILE_MAP: Partial<Record<MachineId, ExerciseMetricProfile>> = {
   "assisted-pullup": ASSISTANCE_PROFILE,
   "dip-machine": ASSISTANCE_PROFILE,
@@ -408,6 +421,8 @@ const EXERCISE_METRIC_PROFILE_MAP: Partial<Record<MachineId, ExerciseMetricProfi
   cycle: CYCLE_PROFILE,
   elliptical: ELLIPTICAL_PROFILE,
   rowing: ROWING_PROFILE,
+  "stabilization-training": COMPLETION_ONLY_PROFILE,
+  "coordination-training": COMPLETION_ONLY_PROFILE,
 }
 
 const MACHINE_VISUAL_MAP: Record<MachineId, MachineVisualKey> = {
@@ -474,6 +489,8 @@ const MACHINE_VISUAL_MAP: Record<MachineId, MachineVisualKey> = {
   "hanging-leg-raise": "core",
   "weighted-sit-up": "core",
   "ab-wheel": "core",
+  "stabilization-training": "core",
+  "coordination-training": "cardio",
   treadmill: "treadmill",
   cycle: "cycle",
   elliptical: "elliptical",
@@ -525,8 +542,37 @@ const MACHINE_VISUAL_LABEL_MAP: Record<MachineVisualKey, string> = {
   rowErg: "로잉",
 }
 
+const MACHINE_CATEGORY_ALIASES: Partial<Record<MachineId, MachineCategoryKey[]>> = {
+  "dip-machine": ["arms", "chest", "shoulder"],
+  "stabilization-training": ["shoulder", "arms", "core", "cardio"],
+  "coordination-training": ["cardio", "legs", "shoulder", "core"],
+}
+
 export function getMachineById(machineId: string) {
   return MACHINES.find((machine) => machine.id === machineId)
+}
+
+export function getMachineCategories(machineId: string, fallbackCategory?: MachineCategoryKey) {
+  const machine = getMachineById(machineId)
+  const aliasedCategories = MACHINE_CATEGORY_ALIASES[machineId as MachineId]
+
+  if (aliasedCategories && aliasedCategories.length > 0) {
+    return aliasedCategories
+  }
+
+  if (machine?.category) {
+    return [machine.category]
+  }
+
+  return fallbackCategory ? [fallbackCategory] : []
+}
+
+export function doesMachineMatchCategory(machineId: string, category: MachineCategoryKey, fallbackCategory?: MachineCategoryKey) {
+  if (category === "all") {
+    return true
+  }
+
+  return getMachineCategories(machineId, fallbackCategory).includes(category)
 }
 
 export function getMachineVisualKey(machineId: string, fallbackCategory?: MachineCategoryKey): MachineVisualKey {
@@ -540,6 +586,10 @@ export function getMachineVisualLabel(machineId: string, fallbackCategory?: Mach
 
 export function getExerciseMetricProfile(machineId: string): ExerciseMetricProfile {
   return EXERCISE_METRIC_PROFILE_MAP[machineId as MachineId] ?? STRENGTH_PROFILE
+}
+
+export function getExerciseMetricDefaultValues(machineId: string) {
+  return getExerciseMetricProfile(machineId).defaultValues ?? {}
 }
 
 export function isSetBasedExercise(machineId: string) {
@@ -614,6 +664,29 @@ function normalizeExerciseSupersetsInternal(exercises: ExerciseDraft[]) {
 
 export function normalizeExerciseSupersets(exercises: ExerciseDraft[]) {
   return normalizeExerciseSupersetsInternal(exercises)
+}
+
+export function reorderExerciseDrafts(exercises: ExerciseDraft[], fromIndex: number, toIndex: number) {
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= exercises.length ||
+    toIndex >= exercises.length ||
+    fromIndex === toIndex
+  ) {
+    return exercises
+  }
+
+  const nextExercises = [...exercises]
+  const [movedExercise] = nextExercises.splice(fromIndex, 1)
+
+  if (!movedExercise) {
+    return exercises
+  }
+
+  nextExercises.splice(toIndex, 0, movedExercise)
+
+  return normalizeExerciseSupersets(nextExercises)
 }
 
 export function createSupersetGroupId(dayKey: DayKey) {
@@ -696,6 +769,9 @@ export function formatSupersetExerciseNames(exercises: Pick<ExerciseDraft, "mach
 
 export function isExerciseConfigured(exercise: Pick<ExerciseDraft, "machineId" | "weight" | "reps" | "sets">) {
   const profile = getExerciseMetricProfile(exercise.machineId)
+  if (profile.trackingMode === "completionOnly") {
+    return true
+  }
   return profile.fields.every((field) => Number(exercise[field.field]) > 0)
 }
 
@@ -704,6 +780,9 @@ export function formatExerciseMetricSummary(
   emptyLabel = "미입력",
 ) {
   const profile = getExerciseMetricProfile(exercise.machineId)
+  if (profile.trackingMode === "completionOnly") {
+    return "오늘 페이지에서 완료만 체크"
+  }
   const values = profile.fields
     .map((field) => {
       const raw = exercise[field.field]
@@ -716,6 +795,9 @@ export function formatExerciseMetricSummary(
 
 export function getExerciseMetricHint(machineId: string) {
   const profile = getExerciseMetricProfile(machineId)
+  if (profile.trackingMode === "completionOnly") {
+    return "세트 입력 없이 오늘 페이지에서 완료 여부만 기록합니다"
+  }
   return `${profile.fields.map((field) => field.label).join(", ")} 항목을 입력해 주세요`
 }
 
