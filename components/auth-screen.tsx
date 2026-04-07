@@ -11,6 +11,7 @@ export default function AuthScreen({
   confirmPassword,
   email,
   emailError,
+  isSubmitting,
   onConfirmPasswordChange,
   onEmailChange,
   onPasswordChange,
@@ -26,6 +27,7 @@ export default function AuthScreen({
   confirmPassword: string
   email: string
   emailError: string
+  isSubmitting: boolean
   onConfirmPasswordChange: (value: string) => void
   onEmailChange: (value: string) => void
   onPasswordChange: (value: string) => void
@@ -130,13 +132,13 @@ export default function AuthScreen({
           </p>
           <button
             className={`h-14 w-full rounded-[18px] text-[15px] font-semibold transition-all ${
-              canSubmit ? "bg-[#191F28] text-white active:scale-[0.99]" : "bg-[#E7EBEF] text-[#9AA4B2]"
+              canSubmit && !isSubmitting ? "bg-[#191F28] text-white active:scale-[0.99]" : "bg-[#E7EBEF] text-[#9AA4B2]"
             }`}
-            disabled={!canSubmit}
+            disabled={!canSubmit || isSubmitting}
             onClick={onSubmit}
             type="button"
           >
-            {authMode === "signup" ? "다음" : "로그인"}
+            {isSubmitting ? "처리 중..." : authMode === "signup" ? "다음" : "로그인"}
           </button>
         </div>
       </div>
