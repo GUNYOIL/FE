@@ -1,5 +1,6 @@
 
 const DEFAULT_API_BASE_URL = "https://gunyoil.dsmhs.kr"
+export const AUTH_ERROR_EVENT = "gunyoil:auth-error"
 
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "")
 
@@ -84,6 +85,22 @@ function getApiErrorMessage(payload: unknown, fallback: string) {
   return messages.length > 0 ? messages.join("\n") : fallback
 }
 
+export function isAuthErrorStatus(status: number) {
+  return status === 401 || status === 403
+}
+
+function dispatchAuthError(status: number) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(AUTH_ERROR_EVENT, {
+      detail: { status },
+    }),
+  )
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, headers, method = "GET", token } = options
   const requestHeaders = new Headers(headers)
@@ -113,6 +130,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const payload = parseResponseBody(text)
 
   if (!response.ok) {
+    if (token && isAuthErrorStatus(response.status)) {
+      dispatchAuthError(response.status)
+    }
+
     throw new ApiError(response.status, payload, getApiErrorMessage(payload, "요청 처리에 실패했습니다."))
   }
 

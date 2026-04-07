@@ -14,6 +14,7 @@ import {
 } from "@/lib/app-config"
 import { sanitizePositiveIntegerInput } from "@/lib/numeric-input"
 import { MinusIcon, PlusIcon } from "./icons"
+import { ProteinScreenSkeleton } from "./loading-skeletons"
 
 const DEFAULT_QUICK_PROTEIN_VALUES = createInitialQuickProteinValues()
 const QUICK_PROTEIN_MAX = 30
@@ -335,7 +336,7 @@ export default function ProteinScreen({
   }
 
   if (proteinQuery.isLoading || mealQuery.isLoading) {
-    return <div className="min-h-full bg-[#F7F8FA]" />
+    return <ProteinScreenSkeleton />
   }
 
   if (topLevelError) {

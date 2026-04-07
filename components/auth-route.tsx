@@ -30,13 +30,9 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
 
   useEffect(() => {
     const persisted = readPersistedState()
-    if (persisted.account && persisted.onboardingData && persisted.onboarded) {
+    if (persisted.account) {
       router.replace("/")
       return
-    }
-
-    if (authMode === "login" && persisted.account?.email) {
-      setEmail(persisted.account.email)
     }
 
     setHasHydrated(true)
@@ -163,7 +159,7 @@ export default function AuthRoute({ authMode }: { authMode: AuthMode }) {
       writePersistedState({
         ...persisted,
         account: {
-          email: email.trim(),
+          email: user.email || email.trim(),
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
         },

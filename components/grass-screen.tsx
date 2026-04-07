@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchMyGrass } from "@/lib/api"
 import { getReadableApiError } from "@/lib/api-client"
+import { GrassScreenSkeleton } from "./loading-skeletons"
 
 type DayData = {
   date: number
@@ -116,7 +117,7 @@ export default function GrassScreen({ token }: { token: string | null }) {
   const weekDayLabels = ["월", "화", "수", "목", "금", "토", "일"]
 
   if (isLoading) {
-    return <div className="min-h-full bg-[#F7F8FA]" />
+    return <GrassScreenSkeleton />
   }
 
   if (error) {

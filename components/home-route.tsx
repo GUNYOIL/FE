@@ -3,10 +3,11 @@
 import { startTransition, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import AppShell from "@/components/app-shell"
+import { AppShellSkeleton } from "@/components/loading-skeletons"
 import { createInitialProteinState, type OnboardingData, type ProteinState } from "@/lib/app-config"
 import { loadRemoteOnboardingState, saveRemoteRoutines } from "@/lib/api-sync"
-import { ApiError } from "@/lib/api-client"
-import { clearPersistedAccount, isProfileDraftComplete, readPersistedState, type Account, writePersistedState } from "@/lib/session"
+import { AUTH_ERROR_EVENT, ApiError, isAuthErrorStatus } from "@/lib/api-client"
+import { clearPersistedSession, hasPersistedSessionMarker, isProfileDraftComplete, readPersistedState, type Account, writePersistedState } from "@/lib/session"
 
 export default function HomeRoute() {
   const router = useRouter()
@@ -20,33 +21,29 @@ export default function HomeRoute() {
     let isCancelled = false
 
     if (!persisted.account) {
-      router.replace("/signup")
+      router.replace("/login")
       return
     }
 
-    if (persisted.onboardingData) {
-      setAccount(persisted.account)
-      setOnboardingData(persisted.onboardingData)
-      setProteinState(persisted.proteinState)
-      setHasHydrated(true)
+    const persistedAccount = persisted.account
 
-      if (!persisted.onboarded) {
-        writePersistedState({
-          ...persisted,
-          onboarded: true,
-        })
-      }
-    }
+    setAccount(persistedAccount)
+    setProteinState(persisted.proteinState)
 
-    void loadRemoteOnboardingState(persisted.account, persisted.onboardingData)
+    void loadRemoteOnboardingState(persistedAccount)
       .then((remote) => {
         if (isCancelled) {
           return
         }
 
         if (remote.onboardingData) {
+          const nextAccount = {
+            ...persistedAccount,
+            email: remote.user.email || persistedAccount.email,
+          }
+
           startTransition(() => {
-            setAccount(persisted.account)
+            setAccount(nextAccount)
             setOnboardingData(remote.onboardingData)
             setProteinState(persisted.proteinState)
             setHasHydrated(true)
@@ -54,6 +51,7 @@ export default function HomeRoute() {
 
           writePersistedState({
             ...persisted,
+            account: nextAccount,
             onboardingData: remote.onboardingData,
             onboarded: remote.user.onboarding_completed || persisted.onboarded,
           })
@@ -72,13 +70,9 @@ export default function HomeRoute() {
           return
         }
 
-        if (error instanceof ApiError && error.status === 401) {
-          writePersistedState(clearPersistedAccount(persisted))
+        if (error instanceof ApiError && isAuthErrorStatus(error.status)) {
+          clearPersistedSession()
           router.replace("/login")
-          return
-        }
-
-        if (persisted.onboardingData) {
           return
         }
 
@@ -96,6 +90,48 @@ export default function HomeRoute() {
   }, [router])
 
   useEffect(() => {
+    if (!account) {
+      return
+    }
+
+    const handleSessionInvalidation = () => {
+      if (hasPersistedSessionMarker()) {
+        return
+      }
+
+      clearPersistedSession()
+      setAccount(null)
+      setOnboardingData(null)
+      router.replace("/login")
+    }
+
+    const handleAuthError = (event: Event) => {
+      const detail = (event as CustomEvent<{ status?: number }>).detail
+
+      if (!detail || !isAuthErrorStatus(detail.status ?? 0)) {
+        return
+      }
+
+      clearPersistedSession()
+      setAccount(null)
+      setOnboardingData(null)
+      router.replace("/login")
+    }
+
+    const intervalId = window.setInterval(handleSessionInvalidation, 1000)
+    window.addEventListener("focus", handleSessionInvalidation)
+    document.addEventListener("visibilitychange", handleSessionInvalidation)
+    window.addEventListener(AUTH_ERROR_EVENT, handleAuthError)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener("focus", handleSessionInvalidation)
+      document.removeEventListener("visibilitychange", handleSessionInvalidation)
+      window.removeEventListener(AUTH_ERROR_EVENT, handleAuthError)
+    }
+  }, [account, router])
+
+  useEffect(() => {
     if (!hasHydrated || !account || !onboardingData) {
       return
     }
@@ -110,7 +146,7 @@ export default function HomeRoute() {
   }, [account, hasHydrated, onboardingData, proteinState])
 
   if (!hasHydrated || !onboardingData) {
-    return <div className="min-h-svh bg-[#FFFFFF]" />
+    return <AppShellSkeleton />
   }
 
   return (
