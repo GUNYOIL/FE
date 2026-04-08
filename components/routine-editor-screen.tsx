@@ -118,6 +118,7 @@ export default function RoutineEditorScreen({
   const canGoExerciseStage = selectedDayRoutine.bodyParts.length > 0
   const canGoDetailStage =
     isRestDay(selectedDayRoutine.bodyParts) || (selectedDayRoutine.bodyParts.length > 0 && selectedDayRoutine.exercises.length > 0)
+  const shouldSkipExerciseStage = isRestDay(selectedDayRoutine.bodyParts)
   const canSave = workingDays.length > 0 && incompleteDays.length === 0
   const selectedDayExerciseCount = selectedDayRoutine.exercises.length
   const selectedDayCompletedExercises = selectedDayRoutine.exercises.filter(isExerciseConfigured).length
@@ -129,9 +130,13 @@ export default function RoutineEditorScreen({
     { key: "focus" as const, label: "부위 설정", hint: "요일의 운동 타입을 먼저 정합니다", enabled: true },
     {
       key: "exercise" as const,
-      label: "운동 선택",
-      hint: canGoExerciseStage ? "머신을 고르고 슈퍼세트도 묶습니다" : "부위를 먼저 선택해야 합니다",
-      enabled: canGoExerciseStage,
+      label: shouldSkipExerciseStage ? "운동 선택 건너뜀" : "운동 선택",
+      hint: shouldSkipExerciseStage
+        ? "휴식일은 운동 선택 없이 바로 저장할 수 있습니다"
+        : canGoExerciseStage
+          ? "머신을 고르고 슈퍼세트도 묶습니다"
+          : "부위를 먼저 선택해야 합니다",
+      enabled: canGoExerciseStage && !shouldSkipExerciseStage,
     },
     {
       key: "details" as const,
@@ -1064,7 +1069,13 @@ export default function RoutineEditorScreen({
         <div className="mx-auto max-w-[480px]">
           <div className="mb-3 rounded-2xl bg-[#F8FAFC] px-3 py-2 text-center">
             <p className="text-[11px] font-semibold text-[#8B95A1]">
-              {routineStage === "focus" ? "먼저 부위를 정해요" : routineStage === "exercise" ? "운동을 고르고 슈퍼세트를 묶어요" : "값을 모두 입력해 저장해요"}
+              {routineStage === "focus"
+                ? shouldSkipExerciseStage
+                  ? "휴식일은 바로 저장 단계로 넘어갑니다"
+                  : "먼저 부위를 정해요"
+                : routineStage === "exercise"
+                  ? "운동을 고르고 슈퍼세트를 묶어요"
+                  : "값을 모두 입력해 저장해요"}
             </p>
             <p className="mt-1 text-[12px] text-[#4E5968]">{routineSummary}</p>
           </div>
@@ -1092,7 +1103,7 @@ export default function RoutineEditorScreen({
               disabled={routineStage === "focus" ? !canGoExerciseStage : routineStage === "exercise" ? !canGoDetailStage : !canSave}
               onClick={() => {
                 if (routineStage === "focus") {
-                  setRoutineStage("exercise")
+                  setRoutineStage(shouldSkipExerciseStage ? "details" : "exercise")
                   return
                 }
 
@@ -1109,7 +1120,7 @@ export default function RoutineEditorScreen({
               }}
               type="button"
             >
-              {routineStage === "focus" ? "운동 선택" : routineStage === "exercise" ? "운동 입력" : "저장하기"}
+              {routineStage === "focus" ? (shouldSkipExerciseStage ? "휴식 저장" : "운동 선택") : routineStage === "exercise" ? "운동 입력" : "저장하기"}
             </button>
           </div>
         </div>
