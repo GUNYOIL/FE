@@ -81,6 +81,7 @@ export default function HomeRoute() {
           return
         }
 
+        clearPersistedSession()
         router.replace("/login")
       })
 
