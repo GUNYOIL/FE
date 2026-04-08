@@ -113,11 +113,17 @@ function calculateStreak(entries: ApiGrassEntry[]) {
   return streak
 }
 
-export default function GrassScreen({ token }: { token: string | null }) {
+export default function GrassScreen({
+  previewEntries,
+  token,
+}: {
+  previewEntries?: ApiGrassEntry[]
+  token: string | null
+}) {
   const todayKey = toLocalDateKey(new Date())
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey)
   const {
-    data: grassEntries = [],
+    data: remoteGrassEntries = [],
     error,
     isLoading,
   } = useQuery({
@@ -125,19 +131,9 @@ export default function GrassScreen({ token }: { token: string | null }) {
     queryFn: () => fetchMyGrass(token as string),
     enabled: Boolean(token),
   })
-
-  if (!token) {
-    return (
-      <div className="flex h-full flex-col overflow-y-auto px-4 pt-5 pb-6">
-        <h2 className="text-[20px] font-bold tracking-tight text-[#191F28]">운동 잔디</h2>
-        <div className="mt-4 rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-5">
-          <p className="text-[14px] font-semibold text-[#191F28]">로그인 이후 잔디 기록을 불러옵니다</p>
-        </div>
-      </div>
-    )
-  }
-
   const monthDate = useMemo(() => new Date(), [])
+  const isPreviewMode = !token && Boolean(previewEntries?.length)
+  const grassEntries = isPreviewMode ? (previewEntries ?? []) : remoteGrassEntries
   const daysInMonth = useMemo(() => new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate(), [monthDate])
   const monthEntries = useMemo(
     () =>
@@ -163,6 +159,17 @@ export default function GrassScreen({ token }: { token: string | null }) {
   const streak = calculateStreak(grassEntries)
   const weekDayLabels = ["월", "화", "수", "목", "금", "토", "일"]
 
+  if (!token && !isPreviewMode) {
+    return (
+      <div className="flex h-full flex-col overflow-y-auto px-4 pt-5 pb-6">
+        <h2 className="text-[20px] font-bold tracking-tight text-[#191F28]">운동 잔디</h2>
+        <div className="mt-4 rounded-2xl border border-[#E5E8EB] bg-[#FFFFFF] px-4 py-5">
+          <p className="text-[14px] font-semibold text-[#191F28]">로그인 이후 잔디 기록을 불러옵니다</p>
+        </div>
+      </div>
+    )
+  }
+
   if (isLoading) {
     return <GrassScreenSkeleton />
   }
@@ -184,6 +191,7 @@ export default function GrassScreen({ token }: { token: string | null }) {
       <div className="px-4 pt-5 pb-4">
         <h2 className="text-[20px] font-bold tracking-tight text-[#191F28]">운동 잔디</h2>
         <p className="mt-0.5 text-[13px] text-[#8B95A1]">{formatMonthLabel(monthDate)}</p>
+        {isPreviewMode ? <p className="mt-1.5 text-[12px] font-medium text-[#3182F6]">샘플 기록으로 미리보기 중입니다</p> : null}
       </div>
 
       <div className="px-4 mb-4">

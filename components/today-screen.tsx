@@ -382,7 +382,15 @@ function hydrateExercisesWithTodayWorkout(exercises: ExerciseRecord[], todayLog:
   })
 }
 
-export default function TodayScreen({ routines, token }: { routines: RoutineMap; token: string | null }) {
+export default function TodayScreen({
+  onRequireAuth,
+  routines,
+  token,
+}: {
+  onRequireAuth?: (description: string) => void
+  routines: RoutineMap
+  token: string | null
+}) {
   const queryClient = useQueryClient()
   const resetTimerRef = useRef<number | null>(null)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -503,6 +511,11 @@ export default function TodayScreen({ routines, token }: { routines: RoutineMap;
 
   const handleSave = async () => {
     if (!token) {
+      if (onRequireAuth) {
+        onRequireAuth("오늘 운동 완료 체크와 세트 저장은 로그인 후 내 기록으로 이어집니다.")
+        return
+      }
+
       setSaveState("error")
       setSaveMessage("로그인 후 오늘 운동을 저장할 수 있습니다.")
       scheduleReset()
@@ -661,6 +674,9 @@ export default function TodayScreen({ routines, token }: { routines: RoutineMap;
             <p className="mt-1 text-[12px] text-[#8B95A1]">
               근력 운동은 세트 단위, 유산소는 완료 버튼으로 기록됩니다. 지금 남은 세트부터 차례로 처리하면 됩니다
             </p>
+            {!token ? (
+              <p className="mt-2 text-[12px] font-medium text-[#3182F6]">미리보기에서는 저장되지 않고, 로그인 후 실제 기록으로 이어집니다.</p>
+            ) : null}
           </div>
         </div>
 
