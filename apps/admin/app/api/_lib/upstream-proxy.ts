@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const SERVER_API_BASE_URL = (process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
+const SERVER_API_BASE_URL = (process.env.API_BASE_URL ?? "").replace(/\/+$/, "");
 
 function buildTargetUrl(pathSegments: string[], search: string) {
   const normalizedPath = pathSegments.join("/");

@@ -1,7 +1,5 @@
 const API_PROXY_PREFIX = "/api/proxy";
 
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
-
 type ApiRequestOptions = {
   body?: BodyInit | FormData | object | null;
   headers?: HeadersInit;
@@ -27,11 +25,7 @@ function buildUrl(path: string) {
   }
 
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  if (!API_BASE_URL) {
-    return `${API_PROXY_PREFIX}${normalizedPath}`;
-  }
-
-  return `${API_BASE_URL}${normalizedPath}`;
+  return `${API_PROXY_PREFIX}${normalizedPath}`;
 }
 
 function parseResponseBody(text: string) {
