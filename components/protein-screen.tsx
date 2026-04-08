@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createProteinLog, deleteMealLog, deleteProteinLog, fetchMealOverview, fetchProteinOverview, fetchSchoolLunch, saveSchoolLunchSelection } from "@/lib/api"
 import { getReadableApiError } from "@/lib/api-client"
-import type { ApiMealOverview, ApiSchoolMealSelection, ApiSchoolMealType } from "@/lib/api-types"
+import type { ApiMealOverview, ApiProteinLog, ApiSchoolMealSelection, ApiSchoolMealType } from "@/lib/api-types"
 import {
   QUICK_PROTEIN_ITEMS,
   createInitialQuickProteinValues,
@@ -27,6 +27,12 @@ const SCHOOL_SELECTION_LABELS: Record<ApiSchoolMealSelection, string> = {
   small: "적게",
   medium: "보통",
   large: "많이",
+}
+
+const SCHOOL_MEAL_TYPE_LABELS: Record<ApiSchoolMealType, string> = {
+  breakfast: "아침",
+  lunch: "점심",
+  dinner: "저녁",
 }
 
 type DisplayLogEntry = {
@@ -82,22 +88,19 @@ function formatProteinLogLabel(type: string, note: string | undefined, typeLabel
   const trimmedNote = note?.trim() ?? ""
 
   if (type === "meal") {
-    if (trimmedNote === "school-lunch:breakfast") {
-      return "아침 급식"
-    }
-
-    if (trimmedNote === "school-lunch:lunch") {
-      return "점심 급식"
-    }
-
-    if (trimmedNote === "school-lunch:dinner") {
-      return "저녁 급식"
+    const schoolMealType = parseSchoolMealTypeFromProteinNote(trimmedNote)
+    if (schoolMealType) {
+      return formatSchoolMealLogLabel(schoolMealType)
     }
 
     return trimmedNote || "급식 기록"
   }
 
   return trimmedNote || typeLabel || "단백질 기록"
+}
+
+function formatSchoolMealLogLabel(mealType: ApiSchoolMealType) {
+  return `${SCHOOL_MEAL_TYPE_LABELS[mealType]} 급식`
 }
 
 function readLocalSchoolMealLogs() {
@@ -163,6 +166,22 @@ function normalizeSchoolMealType(value: string | undefined): ApiSchoolMealType {
   }
 
   return "lunch"
+}
+
+function parseSchoolMealTypeFromProteinNote(value: string | undefined) {
+  if (value === "school-lunch:breakfast") {
+    return "breakfast" as const
+  }
+
+  if (value === "school-lunch:lunch") {
+    return "lunch" as const
+  }
+
+  if (value === "school-lunch:dinner") {
+    return "dinner" as const
+  }
+
+  return null
 }
 
 function getNextSchoolMealType(mealType: ApiSchoolMealType) {
@@ -234,12 +253,26 @@ function parseSchoolMealType(value: string | undefined): ApiSchoolMealType | nul
   return null
 }
 
-function getRecommendedSchoolMealType(mealOverview: ApiMealOverview | undefined): ApiSchoolMealType | null {
+function getRecommendedSchoolMealType(
+  mealOverview: ApiMealOverview | undefined,
+  proteinLogs: ApiProteinLog[] | undefined,
+  localLogs: LocalSchoolMealLogEntry[],
+): ApiSchoolMealType | null {
   const loggedMealTypes = new Set(
     (mealOverview?.meals ?? [])
       .map((meal) => parseSchoolMealType(meal.type))
       .filter((mealType): mealType is ApiSchoolMealType => Boolean(mealType)),
   )
+
+  for (const mealType of (proteinLogs ?? [])
+    .map((entry) => (entry.type === "meal" ? parseSchoolMealTypeFromProteinNote(entry.note) : null))
+    .filter((mealType): mealType is ApiSchoolMealType => Boolean(mealType))) {
+    loggedMealTypes.add(mealType)
+  }
+
+  for (const mealType of localLogs.map((entry) => entry.mealType)) {
+    loggedMealTypes.add(mealType)
+  }
 
   for (const mealType of SCHOOL_MEAL_ORDER) {
     if (!loggedMealTypes.has(mealType)) {
@@ -284,7 +317,10 @@ export default function ProteinScreen({
     queryFn: () => fetchMealOverview(token as string),
     enabled: Boolean(token),
   })
-  const recommendedMealType = useMemo(() => getRecommendedSchoolMealType(mealQuery.data), [mealQuery.data])
+  const recommendedMealType = useMemo(
+    () => getRecommendedSchoolMealType(mealQuery.data, proteinQuery.data?.logs, localSchoolMealLogs),
+    [localSchoolMealLogs, mealQuery.data, proteinQuery.data?.logs],
+  )
   const requestedMealType = useMemo(
     () => getLaterMealType(activeMealType, recommendedMealType) ?? activeMealType ?? recommendedMealType,
     [activeMealType, recommendedMealType],
@@ -513,7 +549,7 @@ export default function ProteinScreen({
       upsertLocalSchoolMealLog({
         createdAt: new Date().toISOString(),
         date: schoolLunch.date,
-        label: `${schoolLunch.meal_type_label ?? currentMealType} 급식`,
+        label: formatSchoolMealLogLabel(currentMealType),
         mealType: currentMealType,
         protein: cafeteriaProtein,
       }),
