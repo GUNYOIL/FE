@@ -1,8 +1,10 @@
 "use client"
 
+import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { fetchMyGrass } from "@/lib/api"
+import { createPreviewGrassEntries } from "@/lib/app-preview"
 import {
   DAY_META,
   formatBodyParts,
@@ -14,6 +16,8 @@ import {
 } from "@/lib/app-config"
 import type { Account } from "@/lib/session"
 import BrandMark from "./brand-mark"
+import GuestAuthSheet from "./guest-auth-sheet"
+import GuestProteinScreen from "./guest-protein-screen"
 import GrassScreen from "./grass-screen"
 import PwaInstallPrompt from "./pwa-install-prompt"
 import ProteinScreen from "./protein-screen"
@@ -84,23 +88,28 @@ export default function AppShell({
   account,
   onboardingData,
   onOnboardingDataChange,
+  previewMode = false,
   proteinState,
   setProteinState,
 }: {
   account?: Account | null
   onboardingData: OnboardingData
   onOnboardingDataChange: (nextData: OnboardingData) => void
+  previewMode?: boolean
   proteinState: ProteinState
   setProteinState: Dispatch<SetStateAction<ProteinState>>
 }) {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<Tab>("오늘")
   const [isRoutineEditing, setIsRoutineEditing] = useState(false)
+  const [authPromptDescription, setAuthPromptDescription] = useState<string | null>(null)
   const { profile, routines } = onboardingData
   const token = account?.accessToken ?? null
+  const isGuestPreview = previewMode || !token
   const todayKey = getTodayDayKey()
   const todayRoutine = routines[todayKey]
   const goalOption = getGoalOption(profile.goal)
+  const previewGrassEntries = useMemo(() => (isGuestPreview ? createPreviewGrassEntries() : undefined), [isGuestPreview])
   const workingDays = DAY_META.filter((day) => {
     const routine = routines[day.key]
     return hasWorkoutBodyParts(routine.bodyParts)
@@ -133,6 +142,10 @@ export default function AppShell({
   )
 
   const activeMeta = tabMeta[activeTab]
+
+  const openAuthPrompt = (description: string) => {
+    setAuthPromptDescription(description)
+  }
 
   const prefetchTab = (tab: Tab) => {
     if (tab !== "잔디" || !token) {
@@ -185,7 +198,7 @@ export default function AppShell({
 
   return (
     <div
-      className="flex flex-col bg-[#FFFFFF]"
+      className="relative flex flex-col bg-[#FFFFFF]"
       style={{
         height: "100svh",
         margin: "0 auto",
@@ -205,13 +218,62 @@ export default function AppShell({
         <p className="pb-3 text-[12px] leading-5 text-[#8B95A1]">{activeMeta.helper}</p>
       </header>
 
+      {isGuestPreview ? (
+        <div className="shrink-0 border-b border-[#EEF1F4] bg-[#FCFDFE] px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-[#3182F6]">미리보기 모드</p>
+              <p className="mt-1 text-[12px] leading-5 text-[#6B7684]">루틴 편집, 오늘 저장, 급식 기록은 로그인 후 내 데이터로 이어집니다.</p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Link
+                className="rounded-full border border-[#D9E0E7] bg-[#FFFFFF] px-3 py-1.5 text-[12px] font-semibold text-[#4E5968]"
+                href="/login"
+              >
+                로그인
+              </Link>
+              <Link className="rounded-full bg-[#191F28] px-3 py-1.5 text-[12px] font-semibold text-white" href="/signup">
+                회원가입
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <main className="relative flex-1 overflow-hidden bg-[#F7F8FA]">
         <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-          {activeTab === "오늘" ? <TodayScreen routines={routines} token={token} /> : null}
-          {activeTab === "루틴" ? <RoutineScreen onEdit={() => setIsRoutineEditing(true)} routines={routines} /> : null}
-          {activeTab === "잔디" ? <GrassScreen token={token} /> : null}
+          {activeTab === "오늘" ? (
+            <TodayScreen
+              onRequireAuth={isGuestPreview ? openAuthPrompt : undefined}
+              routines={routines}
+              token={token}
+            />
+          ) : null}
+          {activeTab === "루틴" ? (
+            <RoutineScreen
+              onEdit={() => {
+                if (isGuestPreview) {
+                  openAuthPrompt("루틴을 편집하고 요일별 운동을 저장하려면 로그인 또는 회원가입이 필요합니다.")
+                  return
+                }
+
+                setIsRoutineEditing(true)
+              }}
+              routines={routines}
+            />
+          ) : null}
+          {activeTab === "잔디" ? <GrassScreen previewEntries={previewGrassEntries} token={token} /> : null}
           {activeTab === "단백질" ? (
-            <ProteinScreen profile={profile} proteinState={proteinState} setProteinState={setProteinState} token={token} />
+            isGuestPreview ? (
+              <GuestProteinScreen
+                onRequireAuth={openAuthPrompt}
+                profile={profile}
+                proteinState={proteinState}
+                setProteinState={setProteinState}
+              />
+            ) : (
+              <ProteinScreen profile={profile} proteinState={proteinState} setProteinState={setProteinState} token={token} />
+            )
           ) : null}
         </div>
       </main>
@@ -245,6 +307,12 @@ export default function AppShell({
           })}
         </nav>
       </div>
+
+      <GuestAuthSheet
+        description={authPromptDescription ?? ""}
+        onClose={() => setAuthPromptDescription(null)}
+        open={Boolean(authPromptDescription)}
+      />
     </div>
   )
 }
