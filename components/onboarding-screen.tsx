@@ -329,6 +329,7 @@ export default function OnboardingScreen({
   const canGoExerciseStage = selectedDayRoutine.bodyParts.length > 0
   const canGoDetailStage =
     isRestDay(selectedDayRoutine.bodyParts) || (selectedDayRoutine.bodyParts.length > 0 && selectedDayRoutine.exercises.length > 0)
+  const shouldSkipExerciseStage = isRestDay(selectedDayRoutine.bodyParts)
   const canCompleteRoutine = workingDays.length > 0 && incompleteDays.length === 0
   const selectedDayExerciseCount = selectedDayRoutine.exercises.length
   const selectedDayCompletedExercises = selectedDayRoutine.exercises.filter(isExerciseConfigured).length
@@ -340,9 +341,13 @@ export default function OnboardingScreen({
     { key: "focus" as const, label: "부위 설정", hint: "요일별 운동 타입을 먼저 정합니다", enabled: true },
     {
       key: "exercise" as const,
-      label: "운동 선택",
-      hint: canGoExerciseStage ? "머신을 고르고 슈퍼세트도 묶습니다" : "부위를 먼저 선택해야 합니다",
-      enabled: canGoExerciseStage,
+      label: shouldSkipExerciseStage ? "운동 선택 건너뜀" : "운동 선택",
+      hint: shouldSkipExerciseStage
+        ? "휴식일은 운동 선택 없이 바로 완료됩니다"
+        : canGoExerciseStage
+          ? "머신을 고르고 슈퍼세트도 묶습니다"
+          : "부위를 먼저 선택해야 합니다",
+      enabled: canGoExerciseStage && !shouldSkipExerciseStage,
     },
     {
       key: "details" as const,
@@ -1128,7 +1133,9 @@ export default function OnboardingScreen({
               {step === 1
                 ? "프로필을 먼저 완성해요"
                 : routineStage === "focus"
-                  ? "부위를 정해 다음 단계를 여세요"
+                  ? shouldSkipExerciseStage
+                    ? "휴식일은 바로 완료 단계로 넘어갑니다"
+                    : "부위를 정해 다음 단계를 여세요"
                   : routineStage === "exercise"
                     ? "운동을 선택하고 슈퍼세트를 묶어요"
                     : "모든 값을 입력해 마무리해요"}
@@ -1199,7 +1206,7 @@ export default function OnboardingScreen({
                 }
 
                 if (routineStage === "focus") {
-                  setRoutineStage("exercise")
+                  setRoutineStage(shouldSkipExerciseStage ? "details" : "exercise")
                   return
                 }
 
@@ -1225,7 +1232,15 @@ export default function OnboardingScreen({
               }}
               type="button"
             >
-              {step === 1 ? "다음" : routineStage === "focus" ? "운동 선택" : routineStage === "exercise" ? "운동 입력" : "앱 시작하기"}
+              {step === 1
+                ? "다음"
+                : routineStage === "focus"
+                  ? shouldSkipExerciseStage
+                    ? "휴식 저장"
+                    : "운동 선택"
+                  : routineStage === "exercise"
+                    ? "운동 입력"
+                    : "앱 시작하기"}
             </button>
           </div>
         </div>

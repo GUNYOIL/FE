@@ -1,6 +1,7 @@
 import {
   GOAL_OPTIONS,
   MACHINES,
+  REST_DAY_BODY_PART,
   calculateProteinTarget,
   createEmptyRoutineMap,
   createExerciseId,
@@ -284,9 +285,13 @@ export function apiRoutinesToRoutineMap(apiRoutines: ApiRoutine[], catalog: ApiE
           .map((category) => PRIMARY_FOCUS_BY_CATEGORY[category]),
       ),
     )
+    const normalizedBodyParts =
+      details.length === 0
+        ? [REST_DAY_BODY_PART]
+        : bodyParts
 
     nextRoutines[dayKey] = {
-      bodyParts,
+      bodyParts: normalizedBodyParts,
       exercises: details.map((detail, index) => {
         const exercise = catalogIndex.byId.get(detail.exercise)
         const machineId = exercise ? getMachineIdFromExercise(exercise) : `exercise-${detail.exercise}`
