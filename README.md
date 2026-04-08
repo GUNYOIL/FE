@@ -4,6 +4,34 @@
 
 회원가입 이후 기본 정보와 운동 목표를 설정하고, 요일별 루틴을 구성한 뒤 바로 오늘 운동 기록으로 이어지는 흐름을 중심으로 설계했습니다. 학생들이 헬스장에서 실제로 자주 쓰는 기록 경험에 맞춰 복잡한 기능보다 빠른 입력과 직관적인 확인에 집중합니다.
 
+## 구조
+
+이 저장소는 `pnpm` 워크스페이스 기반 모노레포입니다.
+
+```txt
+apps/
+  web/    근요일 사용자 앱
+  admin/  근요일 관리자 앱
+```
+
+## 실행
+
+```bash
+pnpm install
+pnpm dev:web
+pnpm dev:admin
+pnpm build
+pnpm typecheck
+```
+
+## Vercel 배포
+
+- 사용자 앱 Root Directory: `apps/web`
+- 관리자 앱 Root Directory: `apps/admin`
+- 환경변수는 프로젝트별로 각각 설정
+
+로컬에서 기존 루트 `.env`를 쓰고 있다면 `apps/web` 빌드 시 자동으로 읽도록 처리되어 있습니다.
+
 ## 주요 기능
 
 - 회원가입과 기본 정보 설정

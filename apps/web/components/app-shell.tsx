@@ -23,6 +23,7 @@ import PwaInstallPrompt from "./pwa-install-prompt"
 import ProteinScreen from "./protein-screen"
 import RoutineEditorScreen from "./routine-editor-screen"
 import RoutineScreen from "./routine-screen"
+import SupportInquiryFab from "./support-inquiry-fab"
 import TodayScreen from "./today-screen"
 
 type Tab = "오늘" | "루틴" | "잔디" | "단백질"
@@ -181,18 +182,33 @@ export default function AppShell({
 
   if (isRoutineEditing) {
     return (
-      <RoutineEditorScreen
-        onBack={() => setIsRoutineEditing(false)}
-        onSave={(nextRoutines) => {
-          onOnboardingDataChange({
-            ...onboardingData,
-            routines: nextRoutines,
-          })
-          setIsRoutineEditing(false)
+      <div
+        className="relative bg-[#F2F4F6]"
+        style={{
+          height: "100svh",
+          margin: "0 auto",
+          maxWidth: 480,
         }}
-        profile={profile}
-        routines={routines}
-      />
+      >
+        <RoutineEditorScreen
+          onBack={() => setIsRoutineEditing(false)}
+          onSave={(nextRoutines) => {
+            onOnboardingDataChange({
+              ...onboardingData,
+              routines: nextRoutines,
+            })
+            setIsRoutineEditing(false)
+          }}
+          profile={profile}
+          routines={routines}
+        />
+        <SupportInquiryFab
+          accountEmail={account?.email ?? null}
+          bottomOffset="calc(1rem + env(safe-area-inset-bottom, 0px))"
+          contextLabel="루틴 수정"
+          previewMode={isGuestPreview}
+        />
+      </div>
     )
   }
 
@@ -313,6 +329,7 @@ export default function AppShell({
         onClose={() => setAuthPromptDescription(null)}
         open={Boolean(authPromptDescription)}
       />
+      <SupportInquiryFab accountEmail={account?.email ?? null} contextLabel={activeTab} previewMode={isGuestPreview} />
     </div>
   )
 }
