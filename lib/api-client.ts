@@ -1,4 +1,5 @@
 export const AUTH_ERROR_EVENT = "gunyoil:auth-error"
+const API_PROXY_PREFIX = "/api/proxy"
 
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "")
 
@@ -29,7 +30,7 @@ function buildUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`
 
   if (!API_BASE_URL) {
-    return normalizedPath
+    return `${API_PROXY_PREFIX}${normalizedPath}`
   }
 
   return `${API_BASE_URL}${normalizedPath}`
