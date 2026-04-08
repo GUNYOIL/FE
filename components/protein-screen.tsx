@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createProteinLog, deleteMealLog, deleteProteinLog, fetchMealOverview, fetchProteinOverview, fetchSchoolLunch, saveSchoolLunchSelection } from "@/lib/api"
 import { getReadableApiError } from "@/lib/api-client"
-import type { ApiSchoolMealSelection, ApiSchoolMealType } from "@/lib/api-types"
+import type { ApiMealOverview, ApiSchoolMealSelection, ApiSchoolMealType } from "@/lib/api-types"
 import {
   QUICK_PROTEIN_ITEMS,
   createInitialQuickProteinValues,
@@ -19,6 +19,7 @@ import { ProteinScreenSkeleton } from "./loading-skeletons"
 const DEFAULT_QUICK_PROTEIN_VALUES = createInitialQuickProteinValues()
 const QUICK_PROTEIN_MAX = 30
 const SCHOOL_MEAL_ORDER: ApiSchoolMealType[] = ["breakfast", "lunch", "dinner"]
+const SCHOOL_MEAL_PROGRESS_STORAGE_KEY = "gunyoil-school-meal-progress-v1"
 
 const SCHOOL_SELECTION_LABELS: Record<ApiSchoolMealSelection, string> = {
   none: "안 먹음",
@@ -93,6 +94,81 @@ function getNextSchoolMealType(mealType: ApiSchoolMealType) {
   return SCHOOL_MEAL_ORDER[currentIndex + 1]
 }
 
+function getMealTypeRank(mealType: ApiSchoolMealType | null) {
+  return mealType ? SCHOOL_MEAL_ORDER.indexOf(mealType) : -1
+}
+
+function getLaterMealType(left: ApiSchoolMealType | null, right: ApiSchoolMealType | null) {
+  return getMealTypeRank(left) >= getMealTypeRank(right) ? left : right
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, "0")
+  const day = `${date.getDate()}`.padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function readPersistedSchoolMealType() {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SCHOOL_MEAL_PROGRESS_STORAGE_KEY)
+    if (!raw) {
+      return null
+    }
+
+    const parsed = JSON.parse(raw) as { date?: string; mealType?: string } | null
+    if (!parsed || parsed.date !== getLocalDateKey()) {
+      return null
+    }
+
+    return parseSchoolMealType(parsed.mealType)
+  } catch {
+    return null
+  }
+}
+
+function writePersistedSchoolMealType(mealType: ApiSchoolMealType) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.localStorage.setItem(
+    SCHOOL_MEAL_PROGRESS_STORAGE_KEY,
+    JSON.stringify({
+      date: getLocalDateKey(),
+      mealType,
+    }),
+  )
+}
+
+function parseSchoolMealType(value: string | undefined): ApiSchoolMealType | null {
+  if (value === "breakfast" || value === "lunch" || value === "dinner") {
+    return value
+  }
+
+  return null
+}
+
+function getRecommendedSchoolMealType(mealOverview: ApiMealOverview | undefined): ApiSchoolMealType | null {
+  const loggedMealTypes = new Set(
+    (mealOverview?.meals ?? [])
+      .map((meal) => parseSchoolMealType(meal.type))
+      .filter((mealType): mealType is ApiSchoolMealType => Boolean(mealType)),
+  )
+
+  for (const mealType of SCHOOL_MEAL_ORDER) {
+    if (!loggedMealTypes.has(mealType)) {
+      return mealType
+    }
+  }
+
+  return "dinner"
+}
+
 export default function ProteinScreen({
   profile,
   proteinState,
@@ -109,7 +185,7 @@ export default function ProteinScreen({
   const [customInput, setCustomInput] = useState("")
   const [customG, setCustomG] = useState("")
   const [schoolSelections, setSchoolSelections] = useState<Record<string, ApiSchoolMealSelection>>({})
-  const [activeMealType, setActiveMealType] = useState<ApiSchoolMealType | null>(null)
+  const [activeMealType, setActiveMealType] = useState<ApiSchoolMealType | null>(() => readPersistedSchoolMealType())
   const { quickCounts } = proteinState
   const quickProteinValues = {
     ...DEFAULT_QUICK_PROTEIN_VALUES,
@@ -126,9 +202,14 @@ export default function ProteinScreen({
     queryFn: () => fetchMealOverview(token as string),
     enabled: Boolean(token),
   })
+  const recommendedMealType = useMemo(() => getRecommendedSchoolMealType(mealQuery.data), [mealQuery.data])
+  const requestedMealType = useMemo(
+    () => getLaterMealType(activeMealType, recommendedMealType) ?? activeMealType ?? recommendedMealType,
+    [activeMealType, recommendedMealType],
+  )
   const schoolLunchQuery = useQuery({
-    queryKey: ["schoolLunch", token, activeMealType ?? "auto"],
-    queryFn: () => fetchSchoolLunch(token as string, activeMealType),
+    queryKey: ["schoolLunch", token, requestedMealType ?? "auto"],
+    queryFn: () => fetchSchoolLunch(token as string, requestedMealType),
     enabled: Boolean(token),
   })
 
@@ -156,6 +237,25 @@ export default function ProteinScreen({
       }, {}),
     )
   }, [schoolLunchQuery.data?.date, schoolLunchQuery.data?.meal_type])
+
+  useEffect(() => {
+    if (!recommendedMealType) {
+      return
+    }
+
+    setActiveMealType((previous) => {
+      const nextMealType = getLaterMealType(previous, recommendedMealType)
+      return nextMealType ?? previous
+    })
+  }, [recommendedMealType])
+
+  useEffect(() => {
+    if (!requestedMealType) {
+      return
+    }
+
+    writePersistedSchoolMealType(requestedMealType)
+  }, [requestedMealType])
 
   const invalidateOverviewQueries = () =>
     Promise.all([
@@ -303,6 +403,7 @@ export default function ProteinScreen({
 
     if (nextMealType) {
       setActiveMealType(nextMealType)
+      writePersistedSchoolMealType(nextMealType)
     }
   }
 
