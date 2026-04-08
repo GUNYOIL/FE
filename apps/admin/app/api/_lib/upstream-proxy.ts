@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 const SERVER_API_BASE_URL = (process.env.API_BASE_URL ?? "").replace(/\/+$/, "");
 
 function buildTargetUrl(pathSegments: string[], search: string) {
-  const normalizedPath = pathSegments.join("/");
-  return `${SERVER_API_BASE_URL}/${normalizedPath}${search}`;
+  const normalizedPath = pathSegments.join("/").replace(/^\/+|\/+$/g, "");
+  const pathname = normalizedPath ? `${normalizedPath}/` : "";
+  return `${SERVER_API_BASE_URL}/${pathname}${search}`;
 }
 
 export async function proxyToUpstream(request: NextRequest, pathSegments: string[]) {
