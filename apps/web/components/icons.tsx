@@ -103,3 +103,18 @@ export function CheckCircle2Icon(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function MessageCircleIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path
+        d="M12 4.5C7.85786 4.5 4.5 7.41015 4.5 11C4.5 12.8664 5.40844 14.5489 6.87189 15.7337L6.25 19.5L9.33649 17.8512C10.1842 18.1081 11.0786 18.25 12 18.25C16.1421 18.25 19.5 15.3399 19.5 11.75C19.5 8.16015 16.1421 4.5 12 4.5Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path d="M8.75 11.25H15.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="M8.75 8.75H12.75" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </BaseIcon>
+  );
+}

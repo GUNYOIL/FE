@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-ui: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-mono: "SFMono-Regular", "IBM Plex Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: #191f28;
+  background:
+    radial-gradient(circle at top left, rgba(49, 130, 246, 0.16), transparent 24%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 48%, #eef2f6 100%);
+  font-family: var(--font-ui);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+  font-family: var(--font-ui);
+}
+
+::selection {
+  color: #ffffff;
+  background: rgba(49, 130, 246, 0.92);
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-display);
+}
+
+@layer components {
+  .panel {
+    @apply rounded-[28px] border border-line bg-panel shadow-panel;
+  }
+
+  .glass-panel {
+    @apply rounded-[28px] border border-white/60 bg-white/85 shadow-panel backdrop-blur;
+  }
+
+  .panel-header {
+    @apply flex flex-col gap-2 border-b border-line/80 px-5 py-4 sm:px-6;
+  }
+
+  .eyebrow {
+    @apply text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-moss;
+  }
+
+  .panel-body {
+    @apply px-5 py-5 sm:px-6 sm:py-6;
+  }
+
+  .field {
+    @apply h-14 w-full rounded-[18px] border border-line bg-[#f9fafb] px-4 text-[15px] text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10;
+  }
+
+  .field::placeholder,
+  .textarea-field::placeholder,
+  .field-textarea::placeholder {
+    color: rgba(139, 149, 161, 0.9);
+  }
+
+  .textarea-field,
+  .field-textarea {
+    @apply w-full rounded-[18px] border border-line bg-[#f9fafb] px-4 py-3 text-[15px] leading-6 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10;
+  }
+
+  .label {
+    @apply mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-ember;
+  }
+
+  .primary-button {
+    @apply inline-flex h-12 items-center justify-center rounded-[18px] bg-moss px-5 text-sm font-semibold text-white transition hover:bg-leaf disabled:bg-[#c8d0da] disabled:text-white;
+  }
+
+  .secondary-button {
+    @apply inline-flex h-12 items-center justify-center rounded-[18px] border border-line bg-white px-5 text-sm font-semibold text-ink transition hover:border-[#b0b8c1] hover:bg-[#f9fafb];
+  }
+
+  .stat-card {
+    @apply rounded-[24px] border border-line bg-[#f8fafc] p-5;
+  }
+}
+
+@layer utilities {
+  .admin-auth-shell {
+    @apply relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10;
+  }
+
+  .admin-auth-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+    background-size: 32px 32px;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .admin-shell {
+    @apply mx-auto grid min-h-screen max-w-[1600px] gap-5 px-4 py-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-5 lg:py-5;
+  }
+
+  .admin-sidebar {
+    @apply flex min-h-[calc(100vh-2rem)] flex-col overflow-hidden;
+  }
+
+  .admin-content {
+    @apply flex min-w-0 flex-col gap-5;
+  }
+
+  .admin-nav-button {
+    @apply flex w-full items-start gap-3 rounded-[22px] px-3 py-3 text-left transition-colors hover:bg-[#F8FAFC];
+  }
+
+  .admin-nav-button-active {
+    @apply bg-[#EBF3FE];
+  }
+
+  .toast {
+    @apply pointer-events-none fixed bottom-6 left-1/2 z-50 min-w-[220px] -translate-x-1/2 rounded-full bg-[#191F28] px-4 py-3 text-center text-[13px] font-medium text-white opacity-0 shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all duration-300;
+  }
+
+  .toast-visible {
+    @apply opacity-100;
+  }
+}

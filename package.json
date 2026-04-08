@@ -1,29 +1,16 @@
 {
-  "name": "gunyoil",
-  "version": "0.1.0",
+  "name": "gunyoil-workspace",
   "private": true,
   "scripts": {
-    "predev": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\"",
-    "prebuild": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\"",
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@tanstack/react-query": "^5.66.0",
-    "next": "^15.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.1",
-    "@types/react": "^19.0.2",
-    "@types/react-dom": "^19.0.2",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "dev": "pnpm --filter web dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "build": "pnpm run build:web && pnpm run build:admin",
+    "build:web": "pnpm --filter web build",
+    "build:admin": "pnpm --filter admin build",
+    "start:web": "pnpm --filter web start",
+    "start:admin": "pnpm --filter admin start",
+    "typecheck": "pnpm --filter web typecheck && pnpm --filter admin typecheck"
   },
   "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184"
 }

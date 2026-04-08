@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+<defs><clipPath id="core_bodyClip"><rect x="192" y="240" width="640" height="640" rx="168" ry="168"/></clipPath></defs>
+<rect x="314" y="126" width="84" height="106" rx="32" ry="32" fill="#27B45D"/>
+<rect x="626" y="126" width="84" height="106" rx="32" ry="32" fill="#27B45D"/>
+<g clip-path="url(#core_bodyClip)">
+<rect x="192" y="240" width="320" height="640" fill="#93E0AE"/>
+<rect x="512" y="240" width="320" height="640" fill="#47C371"/>
+<rect x="192" y="240" width="640" height="108" fill="#D9F5E1" opacity="0.32"/>
+<circle cx="374" cy="546" r="108" fill="#70D594" opacity="0.55"/>
+<circle cx="650" cy="546" r="108" fill="#15A75A" opacity="0.62"/>
+<circle cx="512" cy="542" r="94" fill="#BDF0CB" opacity="0.25"/>
+<rect x="428" y="504" width="168" height="84" rx="42" ry="42" fill="#1C7A49" opacity="0.68"/>
+</g>
+</svg>
