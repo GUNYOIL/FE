@@ -20,6 +20,7 @@ const DEFAULT_QUICK_PROTEIN_VALUES = createInitialQuickProteinValues()
 const QUICK_PROTEIN_MAX = 30
 const SCHOOL_MEAL_ORDER: ApiSchoolMealType[] = ["breakfast", "lunch", "dinner"]
 const SCHOOL_MEAL_PROGRESS_STORAGE_KEY = "gunyoil-school-meal-progress-v1"
+const SCHOOL_MEAL_LOG_STORAGE_KEY = "gunyoil-school-meal-log-v1"
 
 const SCHOOL_SELECTION_LABELS: Record<ApiSchoolMealSelection, string> = {
   none: "안 먹음",
@@ -31,11 +32,19 @@ const SCHOOL_SELECTION_LABELS: Record<ApiSchoolMealSelection, string> = {
 type DisplayLogEntry = {
   id: string
   rawId: number
-  source: "protein" | "meal"
+  source: "protein" | "meal" | "localMeal" | "summaryMeal"
   label: string
   protein: number
   time: string
   createdAt: string
+}
+
+type LocalSchoolMealLogEntry = {
+  createdAt: string
+  date: string
+  label: string
+  mealType: ApiSchoolMealType
+  protein: number
 }
 
 function sanitizeQuickProteinInput(value: string) {
@@ -63,6 +72,74 @@ function parseDecimal(value: string | null | undefined) {
 
 function hasMeaningfulDifference(left: number, right: number) {
   return Math.abs(left - right) >= 0.1
+}
+
+function createMealDeduplicationKey(date: string | undefined, protein: number, label: string) {
+  return `${date ?? ""}|${Math.round(protein * 10)}|${label.trim()}`
+}
+
+function formatProteinLogLabel(type: string, note: string | undefined, typeLabel: string | undefined) {
+  const trimmedNote = note?.trim() ?? ""
+
+  if (type === "meal") {
+    if (trimmedNote === "school-lunch:breakfast") {
+      return "아침 급식"
+    }
+
+    if (trimmedNote === "school-lunch:lunch") {
+      return "점심 급식"
+    }
+
+    if (trimmedNote === "school-lunch:dinner") {
+      return "저녁 급식"
+    }
+
+    return trimmedNote || "급식 기록"
+  }
+
+  return trimmedNote || typeLabel || "단백질 기록"
+}
+
+function readLocalSchoolMealLogs() {
+  if (typeof window === "undefined") {
+    return [] as LocalSchoolMealLogEntry[]
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SCHOOL_MEAL_LOG_STORAGE_KEY)
+    if (!raw) {
+      return []
+    }
+
+    const parsed = JSON.parse(raw) as LocalSchoolMealLogEntry[] | null
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    const today = getLocalDateKey()
+
+    return parsed.filter((entry) => entry && typeof entry === "object" && entry.date === today)
+  } catch {
+    return []
+  }
+}
+
+function writeLocalSchoolMealLogs(entries: LocalSchoolMealLogEntry[]) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.localStorage.setItem(SCHOOL_MEAL_LOG_STORAGE_KEY, JSON.stringify(entries))
+}
+
+function upsertLocalSchoolMealLog(entry: LocalSchoolMealLogEntry) {
+  const nextEntries = [
+    ...readLocalSchoolMealLogs().filter((current) => !(current.date === entry.date && current.mealType === entry.mealType)),
+    entry,
+  ].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+
+  writeLocalSchoolMealLogs(nextEntries)
+  return nextEntries
 }
 
 function formatTimeLabel(value: string | undefined, fallbackDate: string) {
@@ -190,6 +267,7 @@ export default function ProteinScreen({
   const [customG, setCustomG] = useState("")
   const [schoolSelections, setSchoolSelections] = useState<Record<string, ApiSchoolMealSelection>>({})
   const [activeMealType, setActiveMealType] = useState<ApiSchoolMealType | null>(() => readPersistedSchoolMealType())
+  const [localSchoolMealLogs, setLocalSchoolMealLogs] = useState<LocalSchoolMealLogEntry[]>(() => readLocalSchoolMealLogs())
   const { quickCounts } = proteinState
   const quickProteinValues = {
     ...DEFAULT_QUICK_PROTEIN_VALUES,
@@ -260,6 +338,10 @@ export default function ProteinScreen({
 
     writePersistedSchoolMealType(requestedMealType)
   }, [requestedMealType])
+
+  useEffect(() => {
+    setLocalSchoolMealLogs(readLocalSchoolMealLogs())
+  }, [])
 
   const invalidateOverviewQueries = () =>
     Promise.all([
@@ -337,16 +419,18 @@ export default function ProteinScreen({
   const canLogCustom = customInput.trim().length > 0 && Number(customG) > 0
   const combinedLogs = useMemo<DisplayLogEntry[]>(() => {
     const proteinLogs = (proteinOverview?.logs ?? [])
-      .filter((entry) => entry.type !== "meal")
       .map((entry) => ({
-        id: `protein-${entry.id}`,
+        id: `${entry.type === "meal" ? "summary-meal" : "protein"}-${entry.id}`,
         rawId: entry.id,
-        source: "protein" as const,
-        label: entry.note?.trim() || entry.type_label || "단백질 기록",
+        source: entry.type === "meal" ? ("summaryMeal" as const) : ("protein" as const),
+        label: formatProteinLogLabel(entry.type, entry.note, entry.type_label),
         protein: parseDecimal(entry.amount),
         time: formatTimeLabel(entry.created_at, entry.date),
         createdAt: entry.created_at ?? `${entry.date}T00:00:00`,
       }))
+    const proteinLogKeys = new Set(
+      proteinLogs.map((entry) => createMealDeduplicationKey(entry.createdAt.slice(0, 10), entry.protein, entry.label)),
+    )
     const mealLogs = (mealOverview?.meals ?? []).map((entry) => ({
       id: `meal-${entry.id}`,
       rawId: entry.id,
@@ -355,10 +439,28 @@ export default function ProteinScreen({
       protein: parseDecimal(entry.protein),
       time: formatTimeLabel(entry.created_at, entry.date),
       createdAt: entry.created_at ?? `${entry.date}T00:00:00`,
-    }))
+      }))
+      .filter((entry) => !proteinLogKeys.has(createMealDeduplicationKey(entry.createdAt.slice(0, 10), entry.protein, entry.label)))
+    const mealKeys = new Set(
+      [...proteinLogKeys, ...mealLogs.map((entry) => createMealDeduplicationKey(entry.createdAt.slice(0, 10), entry.protein, entry.label))],
+    )
+    const localMealLogs = localSchoolMealLogs
+      .map((entry) => ({
+        id: `local-meal-${entry.date}-${entry.mealType}`,
+        rawId: -1,
+        source: "localMeal" as const,
+        label: entry.label,
+        protein: entry.protein,
+        time: formatTimeLabel(entry.createdAt, entry.date),
+        createdAt: entry.createdAt,
+      }))
+      .filter((entry) => {
+        const dedupeKey = createMealDeduplicationKey(entry.createdAt.slice(0, 10), entry.protein, entry.label)
+        return !mealKeys.has(dedupeKey)
+      })
 
-    return [...mealLogs, ...proteinLogs].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-  }, [mealOverview?.meals, proteinOverview?.logs])
+    return [...proteinLogs, ...mealLogs, ...localMealLogs].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  }, [localSchoolMealLogs, mealOverview?.meals, proteinOverview?.logs])
   const topLevelError = proteinQuery.error || mealQuery.error
 
   const adjustQuick = (id: string, delta: number) => {
@@ -407,6 +509,15 @@ export default function ProteinScreen({
 
     const currentMealType = normalizeSchoolMealType(schoolLunch.meal_type)
     await saveSchoolLunchMutation.mutateAsync()
+    setLocalSchoolMealLogs(
+      upsertLocalSchoolMealLog({
+        createdAt: new Date().toISOString(),
+        date: schoolLunch.date,
+        label: `${schoolLunch.meal_type_label ?? currentMealType} 급식`,
+        mealType: currentMealType,
+        protein: cafeteriaProtein,
+      }),
+    )
     const nextMealType = getNextSchoolMealType(currentMealType)
 
     if (nextMealType) {
@@ -462,6 +573,10 @@ export default function ProteinScreen({
   }
 
   const removeLog = async (entry: DisplayLogEntry) => {
+    if (entry.source === "localMeal" || entry.source === "summaryMeal") {
+      return
+    }
+
     if (entry.source === "meal") {
       await deleteMealLogMutation.mutateAsync(entry.rawId)
       return
@@ -776,14 +891,16 @@ export default function ProteinScreen({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-bold text-[#3182F6]">+{entry.protein}g</span>
-                  <button
-                    className="px-1.5 py-0.5 text-[11px] text-[#8B95A1]"
-                    disabled={deleteProteinLogMutation.isPending || deleteMealLogMutation.isPending}
-                    onClick={() => void removeLog(entry)}
-                    type="button"
-                  >
-                    ×
-                  </button>
+                  {entry.source !== "localMeal" && entry.source !== "summaryMeal" ? (
+                    <button
+                      className="px-1.5 py-0.5 text-[11px] text-[#8B95A1]"
+                      disabled={deleteProteinLogMutation.isPending || deleteMealLogMutation.isPending}
+                      onClick={() => void removeLog(entry)}
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
