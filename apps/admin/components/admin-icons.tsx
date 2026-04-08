@@ -71,3 +71,37 @@ export function CheckCircleIcon(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function EyeIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path
+        d="M3.75 12C5.6 8.8 8.43 7.2 12 7.2C15.57 7.2 18.4 8.8 20.25 12C18.4 15.2 15.57 16.8 12 16.8C8.43 16.8 5.6 15.2 3.75 12Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <circle cx="12" cy="12" r="2.65" stroke="currentColor" strokeWidth="1.8" />
+    </BaseIcon>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path
+        d="M4.5 4.5L19.5 19.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M10.36 7.32C10.89 7.24 11.44 7.2 12 7.2C15.57 7.2 18.4 8.8 20.25 12C19.54 13.23 18.69 14.24 17.69 15.04M13.4 13.41C13.03 13.77 12.52 14 12 14C10.9 14 10 13.1 10 12C10 11.48 10.22 10.97 10.59 10.6M8.27 8.26C6.52 9.03 5 10.27 3.75 12C5.6 15.2 8.43 16.8 12 16.8C12.89 16.8 13.73 16.7 14.53 16.49"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </BaseIcon>
+  );
+}
