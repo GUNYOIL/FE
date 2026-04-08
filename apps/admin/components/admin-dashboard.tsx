@@ -22,7 +22,7 @@ import type {
   InquiryStatus,
 } from "@/lib/api-types";
 import AdminBrandMark from "@/components/admin-brand-mark";
-import { BarChartIcon, LogoutIcon, MegaphoneIcon, MessageCircleIcon } from "@/components/admin-icons";
+import { BarChartIcon, EyeIcon, EyeOffIcon, LogoutIcon, MegaphoneIcon, MessageCircleIcon } from "@/components/admin-icons";
 
 type ViewKey = "exercises" | "announcements" | "inquiries";
 type ToastTone = "success" | "error";
@@ -172,8 +172,9 @@ export default function AdminDashboard() {
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [activeView, setActiveView] = useState<ViewKey>("exercises");
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("iamhelchang");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [exercises, setExercises] = useState<AdminExercise[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [inquiries, setInquiries] = useState<AdminInquiry[]>([]);
@@ -422,13 +423,24 @@ export default function AdminDashboard() {
                   </label>
                   <label className="block">
                     <span className="label">Password</span>
-                    <input
-                      className="field"
-                      disabled={isAuthPending || isBooting}
-                      onChange={(event) => setPassword(event.target.value)}
-                      type="password"
-                      value={password}
-                    />
+                    <div className="relative">
+                      <input
+                        className="field pr-14"
+                        disabled={isAuthPending || isBooting}
+                        onChange={(event) => setPassword(event.target.value)}
+                        type={isPasswordVisible ? "text" : "password"}
+                        value={password}
+                      />
+                      <button
+                        aria-label={isPasswordVisible ? "비밀번호 숨기기" : "비밀번호 보기"}
+                        className="absolute inset-y-0 right-3 flex items-center justify-center text-[#8B95A1] transition hover:text-[#4E5968]"
+                        disabled={isAuthPending || isBooting}
+                        onClick={() => setIsPasswordVisible((previous) => !previous)}
+                        type="button"
+                      >
+                        {isPasswordVisible ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                      </button>
+                    </div>
                   </label>
                   <button className="primary-button w-full" disabled={isAuthPending || isBooting} type="submit">
                     {isAuthPending ? "접속 중..." : "Access Control Panel"}
