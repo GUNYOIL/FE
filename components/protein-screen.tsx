@@ -61,6 +61,10 @@ function parseDecimal(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function hasMeaningfulDifference(left: number, right: number) {
+  return Math.abs(left - right) >= 0.1
+}
+
 function formatTimeLabel(value: string | undefined, fallbackDate: string) {
   const source = value ?? `${fallbackDate}T00:00:00`
   const date = new Date(source)
@@ -307,9 +311,13 @@ export default function ProteinScreen({
   const mealOverview = mealQuery.data
   const schoolLunch = schoolLunchQuery.data
   const totalIntake = parseDecimal(proteinOverview?.consumed_amount)
-  const goal = parseDecimal(proteinOverview?.target_amount) || profile.proteinTarget
+  const remoteGoal = parseDecimal(proteinOverview?.target_amount)
+  const profileGoal = profile.proteinTarget
+  const goal = profileGoal > 0 ? profileGoal : remoteGoal
   const remaining =
-    proteinOverview?.remaining_amount !== undefined && proteinOverview?.remaining_amount !== null
+    proteinOverview?.remaining_amount !== undefined &&
+    proteinOverview?.remaining_amount !== null &&
+    (!profileGoal || !remoteGoal || !hasMeaningfulDifference(profileGoal, remoteGoal))
       ? parseDecimal(proteinOverview.remaining_amount)
       : Math.max(0, goal - totalIntake)
   const pct = typeof proteinOverview?.progress_percent === "number" ? proteinOverview.progress_percent : goal > 0 ? Math.min(100, Math.round((totalIntake / goal) * 100)) : 0
