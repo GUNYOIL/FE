@@ -57,6 +57,8 @@ export type ApiGrassEntry = {
   date: string
   is_completed: boolean
   completion_percent: number
+  is_rest_day?: boolean
+  rest_day?: boolean
 }
 
 export type ApiProteinLogType = "quick" | "manual" | "meal" | "supplement"

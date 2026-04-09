@@ -13,9 +13,15 @@ type DayData = {
   pct: number
   hasRecord: boolean
   isCompleted: boolean
+  isRestDay: boolean
 }
 
-function getGrassColor(pct: number) {
+function isRestDayEntry(entry: ApiGrassEntry | undefined) {
+  return Boolean(entry?.is_rest_day ?? entry?.rest_day)
+}
+
+function getGrassColor({ pct, isRestDay, isCompleted }: { pct: number; isRestDay: boolean; isCompleted: boolean }) {
+  if (isRestDay && !isCompleted && pct === 0) return "#F4D98B"
   if (pct === 0) return "#EAECEF"
   if (pct < 34) return "#B8EFB8"
   if (pct < 67) return "#5FD35F"
@@ -48,7 +54,15 @@ function normalizeCompletionPercent(value: unknown) {
   return Math.max(0, Math.min(100, Math.round(parsed)))
 }
 
-function getDayStatus(pct: number, isCompleted: boolean, hasRecord: boolean) {
+function getDayStatus({ pct, isCompleted, hasRecord, isRestDay }: { pct: number; isCompleted: boolean; hasRecord: boolean; isRestDay: boolean }) {
+  if (isRestDay && !isCompleted && pct === 0) {
+    return {
+      label: "휴식",
+      badgeClassName: "border border-[#F3D67A] bg-[#FFF8E1] text-[#9A6700]",
+      detailLabel: "계획된 휴식일",
+    }
+  }
+
   if (isCompleted || pct >= 100) {
     return {
       label: "완료",
@@ -94,6 +108,7 @@ function buildMonthCells(entries: ApiGrassEntry[], monthDate: Date) {
       pct: normalizeCompletionPercent(entry?.completion_percent),
       hasRecord: Boolean(entry),
       isCompleted: Boolean(entry?.is_completed),
+      isRestDay: isRestDayEntry(entry),
     })
   }
 
@@ -232,7 +247,7 @@ export default function GrassScreen({
                   key={cell.fullDate}
                   className={`relative aspect-square rounded-lg transition-all ${isSelected ? "ring-2 ring-[#3182F6] ring-offset-1" : ""}`}
                   onClick={() => setSelectedDateKey(cell.fullDate)}
-                  style={{ backgroundColor: getGrassColor(cell.pct) }}
+                  style={{ backgroundColor: getGrassColor({ pct: cell.pct, isRestDay: cell.isRestDay, isCompleted: cell.isCompleted }) }}
                   type="button"
                 >
                   {isToday ? <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-white bg-[#3182F6]" /> : null}
@@ -243,7 +258,11 @@ export default function GrassScreen({
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <span className="text-[11px] font-medium text-[#8B95A1]">미기록</span>
-            {["#EAECEF", "#B8EFB8", "#5FD35F", "#2CB52C", "#1A8C1A"].map((color) => (
+            <div className="h-4 w-4 rounded" style={{ backgroundColor: "#EAECEF" }} />
+            <span className="text-[11px] font-medium text-[#8B95A1]">휴식</span>
+            <div className="h-4 w-4 rounded" style={{ backgroundColor: "#F4D98B" }} />
+            <span className="text-[11px] font-medium text-[#8B95A1]">운동</span>
+            {["#B8EFB8", "#5FD35F", "#2CB52C", "#1A8C1A"].map((color) => (
               <div key={color} className="h-4 w-4 rounded" style={{ backgroundColor: color }} />
             ))}
             <span className="text-[11px] font-medium text-[#8B95A1]">완료</span>
@@ -259,9 +278,19 @@ export default function GrassScreen({
                 {monthDate.getMonth() + 1}월 {selectedDay.date}일
               </span>
               <span
-                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${getDayStatus(selectedDay.pct, selectedDay.isCompleted, selectedDay.hasRecord).badgeClassName}`}
+                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${getDayStatus({
+                  pct: selectedDay.pct,
+                  isCompleted: selectedDay.isCompleted,
+                  hasRecord: selectedDay.hasRecord,
+                  isRestDay: selectedDay.isRestDay,
+                }).badgeClassName}`}
               >
-                {getDayStatus(selectedDay.pct, selectedDay.isCompleted, selectedDay.hasRecord).label}
+                {getDayStatus({
+                  pct: selectedDay.pct,
+                  isCompleted: selectedDay.isCompleted,
+                  hasRecord: selectedDay.hasRecord,
+                  isRestDay: selectedDay.isRestDay,
+                }).label}
               </span>
             </div>
 
@@ -269,9 +298,14 @@ export default function GrassScreen({
               {[
                 {
                   label: "상태",
-                  value: getDayStatus(selectedDay.pct, selectedDay.isCompleted, selectedDay.hasRecord).detailLabel,
+                  value: getDayStatus({
+                    pct: selectedDay.pct,
+                    isCompleted: selectedDay.isCompleted,
+                    hasRecord: selectedDay.hasRecord,
+                    isRestDay: selectedDay.isRestDay,
+                  }).detailLabel,
                 },
-                { label: "달성률", value: `${selectedDay.pct}%` },
+                { label: "달성률", value: selectedDay.isRestDay && selectedDay.pct === 0 ? "휴식" : `${selectedDay.pct}%` },
                 { label: "날짜", value: `${selectedDay.date}일` },
               ].map((item) => (
                 <div key={item.label} className="flex flex-col gap-0.5">
@@ -297,7 +331,12 @@ export default function GrassScreen({
               const date = parseDate(entry.date)
               const isSelected = entry.date === selectedDateKey
               const pct = normalizeCompletionPercent(entry.completion_percent)
-              const status = getDayStatus(pct, entry.is_completed, true)
+              const status = getDayStatus({
+                pct,
+                isCompleted: entry.is_completed,
+                hasRecord: true,
+                isRestDay: isRestDayEntry(entry),
+              })
 
               return (
                 <button
@@ -309,7 +348,10 @@ export default function GrassScreen({
                   type="button"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: getGrassColor(pct) }} />
+                    <div
+                      className="h-3 w-3 rounded-sm"
+                      style={{ backgroundColor: getGrassColor({ pct, isRestDay: isRestDayEntry(entry), isCompleted: entry.is_completed }) }}
+                    />
                     <div>
                       <p className="text-[13px] font-semibold text-[#191F28]">
                         {date.getMonth() + 1}월 {date.getDate()}일
@@ -317,7 +359,17 @@ export default function GrassScreen({
                       <p className="text-[12px] text-[#8B95A1]">{status.detailLabel}</p>
                     </div>
                   </div>
-                  <p className={`text-[13px] font-bold ${entry.is_completed || pct >= 100 ? "text-[#2CB52C]" : "text-[#2563EB]"}`}>{pct}%</p>
+                  <p
+                    className={`text-[13px] font-bold ${
+                      isRestDayEntry(entry) && pct === 0
+                        ? "text-[#9A6700]"
+                        : entry.is_completed || pct >= 100
+                          ? "text-[#2CB52C]"
+                          : "text-[#2563EB]"
+                    }`}
+                  >
+                    {isRestDayEntry(entry) && pct === 0 ? "휴식" : `${pct}%`}
+                  </p>
                 </button>
               )
             })}
