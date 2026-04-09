@@ -53,6 +53,31 @@ type LocalSchoolMealLogEntry = {
   protein: number
 }
 
+function SchoolMealLoadingState({ mealType }: { mealType: ApiSchoolMealType | null }) {
+  const label = mealType ? SCHOOL_MEAL_TYPE_LABELS[mealType] : "다음"
+
+  return (
+    <div className="px-4 py-4">
+      <div className="rounded-xl bg-[#F8FAFC] px-3 py-3">
+        <p className="text-[12px] font-semibold text-[#4E5968]">{label} 급식 불러오는 중</p>
+        <div className="mt-3 space-y-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="animate-pulse rounded-xl bg-[#FFFFFF] px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="h-4 w-28 rounded-full bg-[#E9EDF1]" />
+                  <div className="h-3 w-14 rounded-full bg-[#EEF2F6]" />
+                </div>
+                <div className="h-8 w-28 rounded-full bg-[#E9EDF1]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function sanitizeQuickProteinInput(value: string) {
   const sanitized = sanitizePositiveIntegerInput(value)
   if (!sanitized) {
@@ -359,6 +384,7 @@ export default function ProteinScreen({
     queryKey: ["schoolLunch", token, requestedMealType ?? "auto"],
     queryFn: () => fetchSchoolLunch(token as string, requestedMealType),
     enabled: Boolean(token),
+    placeholderData: (previousData) => previousData,
   })
 
   if (!token) {
@@ -458,6 +484,13 @@ export default function ProteinScreen({
   const proteinOverview = proteinQuery.data
   const mealOverview = mealQuery.data
   const schoolLunch = schoolLunchQuery.data
+  const currentSchoolMealType = parseSchoolMealType(schoolLunch?.meal_type)
+  const isSchoolLunchTransitioning =
+    Boolean(requestedMealType) &&
+    schoolLunchQuery.isFetching &&
+    currentSchoolMealType !== null &&
+    currentSchoolMealType !== requestedMealType
+  const isSchoolLunchBusy = saveSchoolLunchMutation.isPending || isSchoolLunchTransitioning
   const totalIntake = parseDecimal(proteinOverview?.consumed_amount)
   const remoteGoal = parseDecimal(proteinOverview?.target_amount)
   const profileGoal = profile.proteinTarget
@@ -721,22 +754,26 @@ export default function ProteinScreen({
             <div>
               <p className="text-[14px] font-semibold text-[#191F28]">오늘 급식</p>
               <p className="text-[12px] text-[#8B95A1]">
-                {schoolLunch?.meal_type_label ?? "급식"} · 선택 기준 {cafeteriaProtein}g
+                {isSchoolLunchTransitioning && requestedMealType
+                  ? `${SCHOOL_MEAL_TYPE_LABELS[requestedMealType]} 급식 · 불러오는 중`
+                  : `${schoolLunch?.meal_type_label ?? "급식"} · 선택 기준 ${cafeteriaProtein}g`}
               </p>
             </div>
             <button
               className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${
-                cafeteriaProtein > 0 && !saveSchoolLunchMutation.isPending ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
+                cafeteriaProtein > 0 && !isSchoolLunchBusy ? "bg-[#191F28] text-white" : "bg-[#F2F4F6] text-[#8B95A1]"
               }`}
-              disabled={cafeteriaProtein === 0 || saveSchoolLunchMutation.isPending || schoolLunchQuery.isLoading || !schoolLunch}
+              disabled={cafeteriaProtein === 0 || isSchoolLunchBusy || schoolLunchQuery.isLoading || !schoolLunch}
               onClick={() => void logCafeteria()}
               type="button"
             >
-              {saveSchoolLunchMutation.isPending ? "기록 중..." : "급식 기록"}
+              {saveSchoolLunchMutation.isPending ? "기록 중..." : isSchoolLunchTransitioning ? "다음 급식 준비 중..." : "급식 기록"}
             </button>
           </div>
           {schoolLunchQuery.error ? (
             <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">{getReadableApiError(schoolLunchQuery.error)}</div>
+          ) : isSchoolLunchTransitioning ? (
+            <SchoolMealLoadingState mealType={requestedMealType} />
           ) : menus.length === 0 ? (
             <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">오늘 급식 정보가 없습니다.</div>
           ) : (
@@ -760,6 +797,7 @@ export default function ProteinScreen({
                               ? "bg-[#3182F6] text-white"
                               : "border border-[#E5E8EB] bg-[#F8FAFC] text-[#8B95A1]"
                           }`}
+                          disabled={isSchoolLunchBusy}
                           onClick={() => setServing(menu.name, option)}
                           type="button"
                         >
