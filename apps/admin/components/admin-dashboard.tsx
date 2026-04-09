@@ -361,21 +361,36 @@ export default function AdminDashboard({ initialView = "exercises" }: { initialV
       return;
     }
 
+    const targetAnnouncement = announcements.find((item) => item.id === id);
+    if (!targetAnnouncement) {
+      return;
+    }
+
+    const nextSelectedState = !targetAnnouncement.is_selected_for_users;
     setSelectingAnnouncementId(id);
 
     try {
       await updateAnnouncementSelection(session.accessToken, id, {
-        is_selected_for_users: true,
+        is_selected_for_users: nextSelectedState,
       });
-      const nextAnnouncements = announcements.map((item) => ({
-        ...item,
-        is_selected_for_users: item.id === id,
-      }));
+      const nextAnnouncements = announcements.map((item) =>
+        nextSelectedState
+          ? {
+              ...item,
+              is_selected_for_users: item.id === id,
+            }
+          : item.id === id
+            ? {
+                ...item,
+                is_selected_for_users: false,
+              }
+            : item,
+      );
       setAnnouncements(nextAnnouncements);
       writeStoredAnnouncements(nextAnnouncements);
-      showToast("사용자 상단 공지를 변경했습니다.");
+      showToast(nextSelectedState ? "사용자 상단 공지를 변경했습니다." : "상단 공지 선택을 해제했습니다.");
     } catch (error) {
-      handleApiError(error, "상단 공지 선택에 실패했습니다.");
+      handleApiError(error, nextSelectedState ? "상단 공지 선택에 실패했습니다." : "상단 공지 선택 해제에 실패했습니다.");
     } finally {
       setSelectingAnnouncementId(null);
     }
@@ -739,11 +754,11 @@ export default function AdminDashboard({ initialView = "exercises" }: { initialV
                                 </span>
                                 <button
                                   className="secondary-button !h-10 !rounded-[16px] !px-4"
-                                  disabled={selectingAnnouncementId === item.id || item.is_selected_for_users}
+                                  disabled={selectingAnnouncementId === item.id}
                                   onClick={() => void handleAnnouncementSelect(item.id)}
                                   type="button"
                                 >
-                                  {selectingAnnouncementId === item.id ? "선택 중..." : item.is_selected_for_users ? "선택됨" : "상단 공지로 선택"}
+                                  {selectingAnnouncementId === item.id ? "처리 중..." : item.is_selected_for_users ? "상단 공지 해제" : "상단 공지로 선택"}
                                 </button>
                                 <button
                                   className="secondary-button !h-10 !rounded-[16px] !px-4 text-[#D92D20]"
