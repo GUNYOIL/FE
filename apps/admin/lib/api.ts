@@ -12,6 +12,18 @@ import type {
   UpdateInquiryStatusRequest,
 } from "@/lib/api-types";
 
+function normalizeInquiryStatus(status: UpdateInquiryStatusRequest["status"]) {
+  if (status === "RESOLVED" || status === "answered") {
+    return "RESOLVED";
+  }
+
+  if (status === "PENDING" || status === "in_progress" || status === "new") {
+    return "PENDING";
+  }
+
+  return status;
+}
+
 function coerceArray<T>(value: unknown, nestedKeys: string[] = []): T[] {
   if (Array.isArray(value)) {
     return value as T[];
@@ -109,6 +121,9 @@ export function updateInquiryStatus(token: string, id: number, body: UpdateInqui
   return apiRequest<unknown>(`/admin/inquiries/${id}/`, {
     method: "PATCH",
     token,
-    body,
+    body: {
+      ...body,
+      status: normalizeInquiryStatus(body.status),
+    },
   });
 }

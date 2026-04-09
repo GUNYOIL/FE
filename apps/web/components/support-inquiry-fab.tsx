@@ -292,7 +292,10 @@ export default function SupportInquiryFab({
     queryKey: ["myInquiries", token],
     queryFn: () => fetchMyInquiries(token as string),
     enabled: Boolean(token),
-    refetchInterval: isOpen ? 15_000 : 60_000,
+    refetchInterval: isOpen ? 5_000 : 10_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   })
 
   const createInquiryMutation = useMutation({
@@ -424,6 +427,14 @@ export default function SupportInquiryFab({
 
   const historyErrorMessage =
     inquiryHistoryQuery.error && token ? getReadableApiError(inquiryHistoryQuery.error, "문의 내역을 불러오지 못했습니다.") : null
+
+  useEffect(() => {
+    if (!isOpen || !token) {
+      return
+    }
+
+    void inquiryHistoryQuery.refetch()
+  }, [inquiryHistoryQuery, isOpen, token])
 
   return (
     <>
