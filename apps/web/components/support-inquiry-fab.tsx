@@ -234,6 +234,15 @@ function mergeInquiryHistory(remoteEntries: ApiInquiry[], localEntries: LocalInq
   return merged.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
 }
 
+function summarizeInquiryContent(content: string) {
+  const lines = content
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return lines[0] ?? ""
+}
+
 export default function SupportInquiryFab({
   accountEmail,
   bottomOffset = "calc(5.5rem + env(safe-area-inset-bottom, 0px))",
@@ -255,6 +264,7 @@ export default function SupportInquiryFab({
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState<"compose" | "history">("compose")
+  const [expandedInquiryId, setExpandedInquiryId] = useState<string | null>(null)
   const [localInquiryEntries, setLocalInquiryEntries] = useState<LocalInquiryEntry[]>(() =>
     filterLocalInquiriesByOwner(readAllLocalInquiries(), accountEmail),
   )
@@ -345,6 +355,7 @@ export default function SupportInquiryFab({
   const closeSheet = () => {
     setIsOpen(false)
     setStatusMessage(null)
+    setExpandedInquiryId(null)
   }
 
   const markInquiryUpdatesAsSeen = () => {
@@ -462,7 +473,7 @@ export default function SupportInquiryFab({
       {isOpen ? (
         <div className="absolute inset-0 z-40 flex items-end bg-[rgba(15,23,42,0.32)]">
           <button aria-label="닫기" className="absolute inset-0" onClick={closeSheet} type="button" />
-          <div className="relative w-full rounded-t-[28px] border border-[#E5E8EB] bg-[#FFFFFF] px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-4 shadow-[0_-24px_48px_rgba(15,23,42,0.14)]">
+          <div className="relative max-h-[88svh] w-full overflow-y-auto rounded-t-[28px] border border-[#E5E8EB] bg-[#FFFFFF] px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-4 shadow-[0_-24px_48px_rgba(15,23,42,0.14)] [scrollbar-width:none] [-ms-overflow-style:none]">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#E5E8EB]" />
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -579,7 +590,11 @@ export default function SupportInquiryFab({
                   <div className="rounded-[18px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-5 text-[13px] text-[#6B7684]">아직 보낸 문의가 없습니다.</div>
                 ) : (
                   <div className="space-y-3">
-                    {inquiryHistory.map((entry) => (
+                    {inquiryHistory.map((entry) => {
+                      const isExpanded = expandedInquiryId === entry.id
+                      const summary = summarizeInquiryContent(entry.content)
+
+                      return (
                       <article key={entry.id} className="rounded-[18px] border border-[#E5E8EB] bg-[#F8FAFC] px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -590,10 +605,26 @@ export default function SupportInquiryFab({
                             {getInquiryStatusLabel(entry.status)}
                           </span>
                         </div>
-                        <p className="mt-3 whitespace-pre-wrap text-[13px] leading-6 text-[#4E5968]">{entry.content}</p>
-                        <p className="mt-2 text-[11px] text-[#8B95A1]">답변 이메일 · {entry.replyEmail}</p>
+                        <p className="mt-3 line-clamp-2 text-[13px] leading-6 text-[#4E5968]">{summary}</p>
+                        {isExpanded ? (
+                          <div className="mt-3 rounded-[16px] bg-[#FFFFFF] px-3 py-3">
+                            <div className="max-h-52 overflow-y-auto whitespace-pre-wrap text-[12px] leading-6 text-[#4E5968] [scrollbar-width:none] [-ms-overflow-style:none]">
+                              {entry.content}
+                            </div>
+                            <p className="mt-2 text-[11px] text-[#8B95A1]">답변 이메일 · {entry.replyEmail}</p>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-[11px] text-[#8B95A1]">답변 이메일 · {entry.replyEmail}</p>
+                        )}
+                        <button
+                          className="mt-3 text-[12px] font-semibold text-[#3182F6]"
+                          onClick={() => setExpandedInquiryId((previous) => (previous === entry.id ? null : entry.id))}
+                          type="button"
+                        >
+                          {isExpanded ? "접기" : "상세 보기"}
+                        </button>
                       </article>
-                    ))}
+                    )})}
                   </div>
                 )}
               </div>
