@@ -322,5 +322,11 @@ export function createMyInquiry(token: string, body: ApiInquiryCreate) {
 }
 
 export async function fetchMyInquiries(token: string) {
-  return []
+  const payload = await requestWithFallbacks(["/me/inquiries/", "/me/inquiries"], (path) =>
+    apiRequest<unknown>(path, {
+      token,
+    }),
+  )
+
+  return coerceArray<ApiInquiry>(payload, ["results", "items", "data", "inquiries"])
 }
