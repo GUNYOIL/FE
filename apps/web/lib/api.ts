@@ -1,8 +1,12 @@
 import { apiRequest, ApiError } from "@/lib/api-client"
 import type {
+  ApiAnnouncement,
   ApiAuthTokens,
   ApiExercise,
   ApiGrassEntry,
+  ApiInquiry,
+  ApiInquiryCreate,
+  ApiInquiryCreateResponse,
   ApiMealOverview,
   ApiProteinLogCreate,
   ApiProteinOverview,
@@ -109,6 +113,11 @@ export function logout(token: string, refreshToken: string | null) {
       refresh: refreshToken,
     },
   })
+}
+
+export async function fetchFeaturedAnnouncement() {
+  const payload = await apiRequest<unknown>("/announcements/", {})
+  return coerceArray<ApiAnnouncement>(payload, ["results", "items", "data", "announcements"])[0] ?? null
 }
 
 export function fetchMyProfile(token: string) {
@@ -300,4 +309,18 @@ export function deleteMealLog(token: string, mealId: number) {
     method: "DELETE",
     token,
   })
+}
+
+export function createMyInquiry(token: string, body: ApiInquiryCreate) {
+  return requestWithFallbacks(["/me/inquiries/", "/me/inquiries"], (path) =>
+    apiRequest<ApiInquiryCreateResponse>(path, {
+      method: "POST",
+      token,
+      body,
+    }),
+  )
+}
+
+export async function fetchMyInquiries(token: string) {
+  return []
 }

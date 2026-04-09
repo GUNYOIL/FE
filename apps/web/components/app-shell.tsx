@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
-import { fetchMyGrass } from "@/lib/api"
+import { fetchFeaturedAnnouncement, fetchMyGrass } from "@/lib/api"
 import { createPreviewGrassEntries } from "@/lib/app-preview"
 import {
   DAY_META,
@@ -19,6 +19,7 @@ import BrandMark from "./brand-mark"
 import GuestAuthSheet from "./guest-auth-sheet"
 import GuestProteinScreen from "./guest-protein-screen"
 import GrassScreen from "./grass-screen"
+import { MegaphoneIcon } from "./icons"
 import PwaInstallPrompt from "./pwa-install-prompt"
 import ProteinScreen from "./protein-screen"
 import RoutineEditorScreen from "./routine-editor-screen"
@@ -111,6 +112,12 @@ export default function AppShell({
   const todayRoutine = routines[todayKey]
   const goalOption = getGoalOption(profile.goal)
   const previewGrassEntries = useMemo(() => (isGuestPreview ? createPreviewGrassEntries() : undefined), [isGuestPreview])
+  const announcementQuery = useQuery({
+    queryKey: ["announcement"],
+    queryFn: fetchFeaturedAnnouncement,
+    staleTime: 60_000,
+  })
+  const featuredAnnouncement = announcementQuery.data
   const workingDays = DAY_META.filter((day) => {
     const routine = routines[day.key]
     return hasWorkoutBodyParts(routine.bodyParts)
@@ -206,7 +213,9 @@ export default function AppShell({
           accountEmail={account?.email ?? null}
           bottomOffset="calc(1rem + env(safe-area-inset-bottom, 0px))"
           contextLabel="루틴 수정"
+          onRequireAuth={openAuthPrompt}
           previewMode={isGuestPreview}
+          token={token}
         />
       </div>
     )
@@ -233,6 +242,19 @@ export default function AppShell({
         </div>
         <p className="pb-3 text-[12px] leading-5 text-[#8B95A1]">{activeMeta.helper}</p>
       </header>
+
+      {featuredAnnouncement ? (
+        <div className="shrink-0 border-b border-[#EEF1F4] bg-[#F8FBFF] px-4 py-3">
+          <div className="flex items-center gap-2 text-[#3182F6]">
+            <span className="flex items-center justify-center">
+              <MegaphoneIcon size={15} />
+            </span>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">공지</p>
+          </div>
+          <p className="mt-1 text-[14px] font-semibold text-[#191F28]">{featuredAnnouncement.title}</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#4E5968]">{featuredAnnouncement.content}</p>
+        </div>
+      ) : null}
 
       {isGuestPreview ? (
         <div className="shrink-0 border-b border-[#EEF1F4] bg-[#FCFDFE] px-4 py-3">
@@ -329,7 +351,13 @@ export default function AppShell({
         onClose={() => setAuthPromptDescription(null)}
         open={Boolean(authPromptDescription)}
       />
-      <SupportInquiryFab accountEmail={account?.email ?? null} contextLabel={activeTab} previewMode={isGuestPreview} />
+      <SupportInquiryFab
+        accountEmail={account?.email ?? null}
+        contextLabel={activeTab}
+        onRequireAuth={openAuthPrompt}
+        previewMode={isGuestPreview}
+        token={token}
+      />
     </div>
   )
 }

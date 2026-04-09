@@ -30,7 +30,7 @@ function buildUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`
 
   if (!API_BASE_URL) {
-    return `${API_PROXY_PREFIX}${normalizedPath}`
+    return `${API_PROXY_PREFIX}${normalizedPath.replace(/\/+$/, "")}`
   }
 
   return `${API_BASE_URL}${normalizedPath}`
