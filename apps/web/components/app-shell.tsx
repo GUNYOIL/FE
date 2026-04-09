@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { fetchFeaturedAnnouncement, fetchMyGrass } from "@/lib/api"
 import { createPreviewGrassEntries } from "@/lib/app-preview"
 import {
@@ -28,6 +29,21 @@ import SupportInquiryFab from "./support-inquiry-fab"
 import TodayScreen from "./today-screen"
 
 type Tab = "오늘" | "루틴" | "잔디" | "단백질"
+
+const TAB_QUERY_VALUES: Record<Tab, string> = {
+  "오늘": "today",
+  "루틴": "routine",
+  "잔디": "grass",
+  "단백질": "protein",
+}
+
+function parseTabQuery(value: string | null): Tab | null {
+  if (!value) {
+    return null
+  }
+
+  return TABS.find((tab) => TAB_QUERY_VALUES[tab.id] === value)?.id ?? null
+}
 
 const TABS: { id: Tab; icon: ReactNode; label: string }[] = [
   {
@@ -101,8 +117,12 @@ export default function AppShell({
   proteinState: ProteinState
   setProteinState: Dispatch<SetStateAction<ProteinState>>
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<Tab>("오늘")
+  const searchTab = parseTabQuery(searchParams.get("tab"))
+  const [activeTab, setActiveTab] = useState<Tab>(searchTab ?? "오늘")
   const [isRoutineEditing, setIsRoutineEditing] = useState(false)
   const [authPromptDescription, setAuthPromptDescription] = useState<string | null>(null)
   const { profile, routines } = onboardingData
@@ -151,6 +171,21 @@ export default function AppShell({
 
   const activeMeta = tabMeta[activeTab]
 
+  useEffect(() => {
+    if (!searchTab) {
+      if (activeTab !== "오늘") {
+        setActiveTab("오늘")
+      }
+      return
+    }
+
+    if (searchTab === activeTab) {
+      return
+    }
+
+    setActiveTab(searchTab)
+  }, [activeTab, searchTab])
+
   const openAuthPrompt = (description: string) => {
     setAuthPromptDescription(description)
   }
@@ -185,6 +220,16 @@ export default function AppShell({
     }
 
     setActiveTab(tab)
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString())
+    if (tab === "오늘") {
+      nextSearchParams.delete("tab")
+    } else {
+      nextSearchParams.set("tab", TAB_QUERY_VALUES[tab])
+    }
+
+    const nextQuery = nextSearchParams.toString()
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false })
   }
 
   if (isRoutineEditing) {
