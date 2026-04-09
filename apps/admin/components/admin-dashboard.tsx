@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   createAnnouncement,
@@ -10,7 +11,7 @@ import {
   fetchInquiries,
   loginAdmin,
   logoutAdmin,
-  updateInquiryStatus,
+  updateAnnouncementSelection,
 } from "@/lib/api";
 import { ApiError, getReadableApiError } from "@/lib/api-client";
 import type {
@@ -21,23 +22,18 @@ import type {
   Announcement,
   InquiryStatus,
 } from "@/lib/api-types";
+import { readStoredAnnouncements, readStoredSession, type AdminSession, writeStoredAnnouncements, writeStoredSession } from "@/lib/session";
 import AdminBrandMark from "@/components/admin-brand-mark";
-import { BarChartIcon, EyeIcon, EyeOffIcon, LogoutIcon, MegaphoneIcon, MessageCircleIcon } from "@/components/admin-icons";
+import { BarChartIcon, ChevronRightIcon, EyeIcon, EyeOffIcon, LogoutIcon, MegaphoneIcon, MessageCircleIcon } from "@/components/admin-icons";
 
 type ViewKey = "exercises" | "announcements" | "inquiries";
 type ToastTone = "success" | "error";
-type AdminSession = {
-  accessToken: string;
-  refreshToken: string | null;
-};
 
 const NAV_ITEMS: Array<{ key: ViewKey; label: string }> = [
   { key: "exercises", label: "운동 기구 추가" },
   { key: "announcements", label: "공지사항 관리" },
   { key: "inquiries", label: "사용자 문의내역" },
 ];
-
-const AUTH_STORAGE_KEY = "gunyoil-admin-session";
 
 const EXERCISE_CATEGORIES: Array<{ value: AdminExerciseCategory; label: string }> = [
   { value: "CHEST", label: "가슴 (CHEST)" },
@@ -69,7 +65,7 @@ function formatDateTime(value: string) {
 }
 
 function getStatusChip(status: InquiryStatus) {
-  if (status === "answered") {
+  if (status === "RESOLVED" || status === "answered") {
     return "bg-[#E8F7EE] text-[#137333]";
   }
 
@@ -81,57 +77,34 @@ function getStatusChip(status: InquiryStatus) {
 }
 
 function getStatusLabel(status: InquiryStatus) {
-  if (status === "answered") {
-    return "답변 완료";
+  if (status === "RESOLVED" || status === "answered") {
+    return "해결 완료";
   }
 
   if (status === "in_progress") {
     return "처리 중";
   }
 
-  if (status === "new") {
-    return "신규";
+  if (status === "new" || status === "PENDING") {
+    return "접수";
   }
 
   return status;
 }
 
-function readStoredSession() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<AdminSession> | null;
-    if (!parsed?.accessToken || typeof parsed.accessToken !== "string") {
-      return null;
-    }
-
-    return {
-      accessToken: parsed.accessToken,
-      refreshToken: typeof parsed.refreshToken === "string" ? parsed.refreshToken : null,
-    } satisfies AdminSession;
-  } catch {
-    return null;
-  }
+function sortAnnouncements(items: Announcement[]) {
+  return [...items].sort((left, right) => right.created_at.localeCompare(left.created_at));
 }
 
-function writeStoredSession(session: AdminSession | null) {
-  if (typeof window === "undefined") {
-    return;
+function mergeAnnouncements(cached: Announcement[], loaded: Announcement[]) {
+  const merged = new Map<number, Announcement>();
+
+  for (const item of sortAnnouncements([...cached, ...loaded])) {
+    const existing = merged.get(item.id);
+    merged.set(item.id, existing ? { ...existing, ...item } : item);
   }
 
-  if (!session) {
-    window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    return;
-  }
-
-  window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  return sortAnnouncements(Array.from(merged.values()));
 }
 
 function toSession(tokens: AdminLoginResponse): AdminSession {
@@ -165,12 +138,12 @@ function Toast({
   );
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ initialView = "exercises" }: { initialView?: ViewKey }) {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const [isAuthPending, setIsAuthPending] = useState(false);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
-  const [activeView, setActiveView] = useState<ViewKey>("exercises");
+  const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -191,7 +164,7 @@ export default function AdminDashboard() {
   const [isExerciseSubmitting, setIsExerciseSubmitting] = useState(false);
   const [isAnnouncementSubmitting, setIsAnnouncementSubmitting] = useState(false);
   const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<number | null>(null);
-  const [updatingInquiryId, setUpdatingInquiryId] = useState<number | null>(null);
+  const [selectingAnnouncementId, setSelectingAnnouncementId] = useState<number | null>(null);
 
   const showToast = (message: string, tone: ToastTone = "success") => {
     setToast({ message, tone });
@@ -199,6 +172,7 @@ export default function AdminDashboard() {
 
   const clearAuthState = () => {
     writeStoredSession(null);
+    writeStoredAnnouncements([]);
     setSession(null);
     setExercises([]);
     setAnnouncements([]);
@@ -225,10 +199,12 @@ export default function AdminDashboard() {
         fetchAnnouncements(token),
         fetchInquiries(token),
       ]);
+      const nextAnnouncements = mergeAnnouncements(readStoredAnnouncements(), loadedAnnouncements);
 
       setExercises(loadedExercises);
-      setAnnouncements(loadedAnnouncements);
+      setAnnouncements(nextAnnouncements);
       setInquiries(loadedInquiries);
+      writeStoredAnnouncements(nextAnnouncements);
     } catch (error) {
       handleApiError(error, "관리자 데이터를 불러오지 못했습니다.");
     } finally {
@@ -259,9 +235,13 @@ export default function AdminDashboard() {
   }, [toast]);
 
   const openInquiryCount = useMemo(
-    () => inquiries.filter((item) => item.status !== "answered").length,
+    () => inquiries.filter((item) => item.status !== "answered" && item.status !== "RESOLVED").length,
     [inquiries],
   );
+
+  useEffect(() => {
+    setActiveView(initialView);
+  }, [initialView]);
 
   const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -322,16 +302,32 @@ export default function AdminDashboard() {
     setIsAnnouncementSubmitting(true);
 
     try {
-      await createAnnouncement(session.accessToken, {
-        title: announcementForm.title.trim(),
-        content: announcementForm.content.trim(),
+      const nextTitle = announcementForm.title.trim();
+      const nextContent = announcementForm.content.trim();
+      const created = await createAnnouncement(session.accessToken, {
+        title: nextTitle,
+        content: nextContent,
       });
+      const createdAnnouncement: Announcement = {
+        id: created.id,
+        title: nextTitle,
+        content: nextContent,
+        is_selected_for_users: created.is_selected_for_users,
+        created_at: new Date().toISOString(),
+      };
+      const nextAnnouncements = mergeAnnouncements(
+        createdAnnouncement.is_selected_for_users
+          ? announcements.map((item) => ({ ...item, is_selected_for_users: false }))
+          : announcements,
+        [createdAnnouncement],
+      );
 
       setAnnouncementForm({
         title: "",
         content: "",
       });
-      await loadDashboardData(session.accessToken);
+      setAnnouncements(nextAnnouncements);
+      writeStoredAnnouncements(nextAnnouncements);
       showToast("공지사항을 등록했습니다.");
     } catch (error) {
       handleApiError(error, "공지사항 등록에 실패했습니다.");
@@ -349,7 +345,9 @@ export default function AdminDashboard() {
 
     try {
       await deleteAnnouncement(session.accessToken, id);
-      await loadDashboardData(session.accessToken);
+      const nextAnnouncements = announcements.filter((item) => item.id !== id);
+      setAnnouncements(nextAnnouncements);
+      writeStoredAnnouncements(nextAnnouncements);
       showToast("공지사항을 삭제했습니다.");
     } catch (error) {
       handleApiError(error, "공지사항 삭제에 실패했습니다.");
@@ -358,21 +356,28 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleInquiryStatusUpdate = async (id: number, status: InquiryStatus) => {
+  const handleAnnouncementSelect = async (id: number) => {
     if (!session) {
       return;
     }
 
-    setUpdatingInquiryId(id);
+    setSelectingAnnouncementId(id);
 
     try {
-      await updateInquiryStatus(session.accessToken, id, { status });
-      await loadDashboardData(session.accessToken);
-      showToast("문의 상태를 업데이트했습니다.");
+      await updateAnnouncementSelection(session.accessToken, id, {
+        is_selected_for_users: true,
+      });
+      const nextAnnouncements = announcements.map((item) => ({
+        ...item,
+        is_selected_for_users: item.id === id,
+      }));
+      setAnnouncements(nextAnnouncements);
+      writeStoredAnnouncements(nextAnnouncements);
+      showToast("사용자 상단 공지를 변경했습니다.");
     } catch (error) {
-      handleApiError(error, "문의 상태 변경에 실패했습니다.");
+      handleApiError(error, "상단 공지 선택에 실패했습니다.");
     } finally {
-      setUpdatingInquiryId(null);
+      setSelectingAnnouncementId(null);
     }
   };
 
@@ -525,7 +530,7 @@ export default function AdminDashboard() {
                 <div className="stat-card">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ember">공지사항</p>
                   <p className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-ink">{announcements.length}</p>
-                  <p className="mt-2 text-[13px] leading-6 text-ember">앱에 노출되는 전체 공지 수</p>
+                  <p className="mt-2 text-[13px] leading-6 text-ember">현재 세션에서 관리 중인 공지 수</p>
                 </div>
                 <div className="stat-card">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ember">미응답 문의</p>
@@ -663,7 +668,7 @@ export default function AdminDashboard() {
                       <p className="eyebrow">Announcement</p>
                       <h2 className="text-[28px] font-bold tracking-[-0.04em] text-ink">공지사항 관리</h2>
                       <p className="text-[14px] leading-6 text-ember">
-                        등록은 <code>/admin/announcements/</code>, 목록은 <code>/announcements/</code> 기준으로 동작합니다.
+                        등록은 <code>/admin/announcements/</code>, 상단 공지 선택은 <code>/admin/announcements/{"{id}"}/</code> PATCH 기준으로 동작합니다. 목록은 현재 세션에 저장한 공지와 현재 노출 공지를 함께 보여줍니다.
                       </p>
                     </div>
                     <div className="panel-body">
@@ -718,13 +723,28 @@ export default function AdminDashboard() {
                           <article key={item.id} className="rounded-[22px] border border-line bg-[#F8FAFC] px-4 py-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                               <div>
-                                <p className="text-[16px] font-semibold text-ink">{item.title}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-[16px] font-semibold text-ink">{item.title}</p>
+                                  {item.is_selected_for_users ? (
+                                    <span className="rounded-full bg-[#EBF3FE] px-3 py-1 text-[11px] font-semibold text-[#1B64DA]">
+                                      현재 상단 노출 중
+                                    </span>
+                                  ) : null}
+                                </div>
                                 <p className="mt-2 text-[14px] leading-6 text-ember">{item.content}</p>
                               </div>
-                              <div className="flex shrink-0 items-center gap-2">
+                              <div className="flex shrink-0 flex-wrap items-center gap-2">
                                 <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-gold">
                                   {formatDateTime(item.created_at)}
                                 </span>
+                                <button
+                                  className="secondary-button !h-10 !rounded-[16px] !px-4"
+                                  disabled={selectingAnnouncementId === item.id || item.is_selected_for_users}
+                                  onClick={() => void handleAnnouncementSelect(item.id)}
+                                  type="button"
+                                >
+                                  {selectingAnnouncementId === item.id ? "선택 중..." : item.is_selected_for_users ? "선택됨" : "상단 공지로 선택"}
+                                </button>
                                 <button
                                   className="secondary-button !h-10 !rounded-[16px] !px-4 text-[#D92D20]"
                                   disabled={deletingAnnouncementId === item.id}
@@ -759,8 +779,12 @@ export default function AdminDashboard() {
                       </div>
                     ) : (
                       inquiries.map((item) => (
-                        <article key={item.id} className="rounded-[24px] border border-line bg-[#F8FAFC] px-4 py-4">
-                          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                        <Link
+                          key={item.id}
+                          className="block rounded-[24px] border border-line bg-[#F8FAFC] px-4 py-4 transition hover:border-[#b8c2cc] hover:bg-white"
+                          href={`/inquiries/${item.id}`}
+                        >
+                          <article className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-[17px] font-semibold text-ink">{item.title}</p>
@@ -771,28 +795,13 @@ export default function AdminDashboard() {
                               <p className="mt-2 text-[13px] text-gold">
                                 사용자 {item.user_email} · 답변 {item.reply_email} · {formatDateTime(item.created_at)}
                               </p>
-                              <p className="mt-3 text-[14px] leading-6 text-ember">{item.content}</p>
                             </div>
-                            <div className="flex shrink-0 flex-wrap gap-2">
-                              <button
-                                className="secondary-button"
-                                disabled={updatingInquiryId === item.id}
-                                onClick={() => void handleInquiryStatusUpdate(item.id, "in_progress")}
-                                type="button"
-                              >
-                                {updatingInquiryId === item.id ? "변경 중..." : "처리 중"}
-                              </button>
-                              <button
-                                className="primary-button"
-                                disabled={updatingInquiryId === item.id}
-                                onClick={() => void handleInquiryStatusUpdate(item.id, "answered")}
-                                type="button"
-                              >
-                                답변 완료
-                              </button>
+                            <div className="flex items-center gap-2 text-[13px] font-semibold text-moss">
+                              상세보기
+                              <ChevronRightIcon size={18} />
                             </div>
-                          </div>
-                        </article>
+                          </article>
+                        </Link>
                       ))
                     )}
                   </div>

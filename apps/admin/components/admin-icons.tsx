@@ -105,3 +105,20 @@ export function EyeOffIcon(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function ArrowLeftIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="M15.5 5.75L9.25 12L15.5 18.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path d="M9.75 12H19" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </BaseIcon>
+  );
+}
+
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="M9 6.5L14.5 12L9 17.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </BaseIcon>
+  );
+}
