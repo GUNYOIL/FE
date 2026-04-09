@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { fetchFeaturedAnnouncement, fetchMyGrass } from "@/lib/api"
@@ -117,7 +117,6 @@ export default function AppShell({
   proteinState: ProteinState
   setProteinState: Dispatch<SetStateAction<ProteinState>>
 }) {
-  const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -207,18 +206,6 @@ export default function AppShell({
       return
     }
 
-    if (tab === "잔디" && token) {
-      try {
-        await queryClient.fetchQuery({
-          queryKey: ["grass", token],
-          queryFn: () => fetchMyGrass(token),
-          staleTime: 0,
-        })
-      } catch {
-        // Let the destination screen render its own error state if the refresh fails.
-      }
-    }
-
     setActiveTab(tab)
 
     const nextSearchParams = new URLSearchParams(searchParams.toString())
@@ -229,7 +216,19 @@ export default function AppShell({
     }
 
     const nextQuery = nextSearchParams.toString()
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false })
+    window.history.replaceState(null, "", nextQuery ? `${pathname}?${nextQuery}` : pathname)
+
+    if (tab === "잔디" && token) {
+      void queryClient
+        .fetchQuery({
+          queryKey: ["grass", token],
+          queryFn: () => fetchMyGrass(token),
+          staleTime: 0,
+        })
+        .catch(() => {
+          // Let the destination screen render its own error state if the refresh fails.
+        })
+    }
   }
 
   if (isRoutineEditing) {
