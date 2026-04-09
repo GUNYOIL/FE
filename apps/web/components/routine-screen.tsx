@@ -27,13 +27,16 @@ export default function RoutineScreen({
     const routine = routines[day.key]
     const exerciseGroups = groupRoutineExercises(routine.exercises)
     const supersetCount = exerciseGroups.filter((group) => group.isSuperset).length
+    const hasRoutine = hasWorkoutBodyParts(routine.bodyParts)
+    const isRest = isRestDay(routine.bodyParts)
 
     return {
       day,
       routine,
       exerciseGroups,
-      hasRoutine: hasWorkoutBodyParts(routine.bodyParts),
-      isRest: isRestDay(routine.bodyParts),
+      hasRoutine,
+      isRest,
+      hasConfiguredDay: hasRoutine || isRest,
       isToday: day.key === todayKey,
       supersetCount,
     }
@@ -41,20 +44,19 @@ export default function RoutineScreen({
 
   const configuredDays = daySummaries.filter((item) => item.hasRoutine)
   const restDays = daySummaries.filter((item) => item.isRest)
-  const emptyDays = daySummaries.filter((item) => !item.hasRoutine)
+  const emptyDays = daySummaries.filter((item) => !item.hasConfiguredDay)
   const initialSelectedDayKey =
-    daySummaries.find((item) => item.isToday && item.hasRoutine)?.day.key ?? configuredDays[0]?.day.key ?? DAY_META[0].key
+    daySummaries.find((item) => item.isToday && item.hasConfiguredDay)?.day.key
+    ?? configuredDays[0]?.day.key
+    ?? restDays[0]?.day.key
+    ?? DAY_META[0].key
   const [selectedDayKey, setSelectedDayKey] = useState(initialSelectedDayKey)
   const selectedDaySummary = daySummaries.find((item) => item.day.key === selectedDayKey) ?? daySummaries[0]
   const focusDay = selectedDaySummary.day
   const focusRoutine = selectedDaySummary.routine
   const totalExercises = configuredDays.reduce((sum, item) => sum + item.routine.exercises.length, 0)
   const totalSupersets = daySummaries.reduce((sum, item) => sum + item.supersetCount, 0)
-  const routineStatusLabel = hasWorkoutBodyParts(focusRoutine.bodyParts)
-    ? isRestDay(focusRoutine.bodyParts)
-      ? "휴식일"
-      : "운동일"
-    : "미설정"
+  const routineStatusLabel = selectedDaySummary.isRest ? "휴식일" : selectedDaySummary.hasRoutine ? "운동일" : "미설정"
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -65,7 +67,9 @@ export default function RoutineScreen({
               <p className="text-[12px] font-semibold text-[#8B95A1]">주간 계획</p>
               <h2 className="mt-1 text-[24px] font-bold tracking-tight text-[#191F28]">루틴</h2>
               <p className="mt-1.5 text-[13px] leading-6 text-[#6B7684]">
-                {hasWorkoutBodyParts(focusRoutine.bodyParts)
+                {selectedDaySummary.isRest
+                  ? `${focusDay.full} · 계획된 휴식일`
+                  : hasWorkoutBodyParts(focusRoutine.bodyParts)
                   ? `${focusDay.full} · ${formatBodyParts(focusRoutine.bodyParts)}`
                   : "먼저 볼 루틴부터 정리합니다"}
               </p>
@@ -87,7 +91,11 @@ export default function RoutineScreen({
               {routineStatusLabel}
             </span>
             <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[12px] font-semibold text-[#4E5968]">
-              {hasWorkoutBodyParts(focusRoutine.bodyParts) ? formatBodyParts(focusRoutine.bodyParts) : "요일 선택 필요"}
+              {selectedDaySummary.isRest
+                ? "휴식"
+                : hasWorkoutBodyParts(focusRoutine.bodyParts)
+                  ? formatBodyParts(focusRoutine.bodyParts)
+                  : "요일 선택 필요"}
             </span>
           </div>
 
@@ -123,7 +131,7 @@ export default function RoutineScreen({
           </span>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {daySummaries.map(({ day, hasRoutine, isRest, isToday, routine }) => {
+          {daySummaries.map(({ day, hasRoutine, hasConfiguredDay, isRest, isToday, routine }) => {
             const dayPreview = getRoutineDayCardPreview(routine.bodyParts)
             const isSelected = day.key === selectedDayKey
 
@@ -135,6 +143,8 @@ export default function RoutineScreen({
                     ? "border-[#3182F6] bg-[#EBF3FE]"
                     : hasRoutine
                       ? "border-[#DCE7FB] bg-[#F8FBFF]"
+                      : isRest
+                        ? "border-[#F3E1A6] bg-[#FFF9E9]"
                       : "border-[#E5E8EB] bg-[#F8FAFC]"
                 }`}
                 onClick={() => setSelectedDayKey(day.key)}
@@ -166,10 +176,12 @@ export default function RoutineScreen({
                       ? "bg-[#3182F6] text-white"
                       : hasRoutine
                         ? "bg-[#EAF7EC] text-[#2CB52C]"
+                        : isRest
+                          ? "bg-[#FFF3CD] text-[#8A6D1F]"
                         : "bg-[#EEF2F6] text-[#8B95A1]"
                   }`}
                 >
-                  {isSelected ? "선택 중" : hasRoutine ? (isRest ? "휴식" : "운동") : "비어있음"}
+                  {isSelected ? "선택 중" : hasConfiguredDay ? (isRest ? "휴식" : "운동") : "비어있음"}
                 </span>
               </button>
             )
@@ -188,8 +200,9 @@ export default function RoutineScreen({
           </span>
         </div>
         {(() => {
-          const { day, routine, exerciseGroups, hasRoutine, isRest, isToday, supersetCount } = selectedDaySummary
-          const isEmpty = !hasRoutine
+          const { day, routine, exerciseGroups, hasRoutine, hasConfiguredDay, isRest, isToday, supersetCount } =
+            selectedDaySummary
+          const isEmpty = !hasConfiguredDay
           const exerciseCount = routine.exercises.length
 
           return (
@@ -212,7 +225,7 @@ export default function RoutineScreen({
                     ) : null}
                   </div>
                   <p className="mt-1 truncate text-[12px] text-[#4E5968]">
-                    {hasRoutine ? formatBodyParts(routine.bodyParts) : "아직 설정된 운동이 없습니다"}
+                    {isRest ? "회복에 집중하는 휴식일입니다" : hasRoutine ? formatBodyParts(routine.bodyParts) : "아직 설정된 운동이 없습니다"}
                   </p>
                 </div>
                 <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
