@@ -6,7 +6,9 @@ import type {
   AdminLoginResponse,
   Announcement,
   CreateAnnouncementRequest,
+  CreateAnnouncementResponse,
   CreateExerciseRequest,
+  UpdateAnnouncementSelectionRequest,
   UpdateInquiryStatusRequest,
 } from "@/lib/api-types";
 
@@ -73,8 +75,16 @@ export async function fetchAnnouncements(token: string | null = null) {
 }
 
 export function createAnnouncement(token: string, body: CreateAnnouncementRequest) {
-  return apiRequest<unknown>("/admin/announcements/", {
+  return apiRequest<CreateAnnouncementResponse>("/admin/announcements/", {
     method: "POST",
+    token,
+    body,
+  });
+}
+
+export function updateAnnouncementSelection(token: string, id: number, body: UpdateAnnouncementSelectionRequest) {
+  return apiRequest<unknown>(`/admin/announcements/${id}/`, {
+    method: "PATCH",
     token,
     body,
   });

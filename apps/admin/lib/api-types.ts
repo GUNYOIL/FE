@@ -29,6 +29,7 @@ export type Announcement = {
   id: number;
   title: string;
   content: string;
+  is_selected_for_users: boolean;
   created_at: string;
 };
 
@@ -37,7 +38,16 @@ export type CreateAnnouncementRequest = {
   content: string;
 };
 
-export type InquiryStatus = string;
+export type CreateAnnouncementResponse = {
+  id: number;
+  is_selected_for_users: boolean;
+};
+
+export type UpdateAnnouncementSelectionRequest = {
+  is_selected_for_users: boolean;
+};
+
+export type InquiryStatus = "PENDING" | "RESOLVED" | string;
 
 export type AdminInquiry = {
   id: number;
