@@ -186,3 +186,33 @@ export type ApiSchoolMealSelectionSave = {
   meal_type: ApiSchoolMealType
   items: ApiSchoolMealSelectionItemWrite[]
 }
+
+export type ApiInquiryStatus = "new" | "PENDING" | "RESOLVED" | "in_progress" | "answered" | string
+
+export type ApiInquiry = {
+  id: number
+  user_email?: string
+  reply_email: string
+  title: string
+  content: string
+  status: ApiInquiryStatus
+  created_at: string
+}
+
+export type ApiInquiryCreate = {
+  title: string
+  content: string
+  email: string
+}
+
+export type ApiInquiryCreateResponse = {
+  id: number
+}
+
+export type ApiAnnouncement = {
+  id: number
+  title: string
+  content: string
+  is_selected_for_users: boolean
+  created_at: string
+}

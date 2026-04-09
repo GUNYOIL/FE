@@ -118,3 +118,24 @@ export function MessageCircleIcon(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function MegaphoneIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path
+        d="M13.25 7.25L17.75 5.5V18.5L13.25 16.75V7.25Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M13.25 7.5H9.5C7.98122 7.5 6.75 8.73122 6.75 10.25V13.75C6.75 15.2688 7.98122 16.5 9.5 16.5H13.25"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path d="M8.5 16.5L9.5 19" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="M18.75 9C19.6642 9.76837 20.25 10.919 20.25 12.25C20.25 13.581 19.6642 14.7316 18.75 15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </BaseIcon>
+  );
+}
