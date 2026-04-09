@@ -85,7 +85,7 @@ function getInquiryStatusLabel(status: ApiInquiryStatus) {
   }
 
   if (status === "PENDING" || status === "in_progress") {
-    return "접수 안됨"
+    return "접수됨"
   }
 
   return "접수 안됨"
@@ -97,7 +97,7 @@ function getInquiryStatusChipClass(status: ApiInquiryStatus) {
   }
 
   if (status === "PENDING" || status === "in_progress") {
-    return "bg-[#F2F4F6] text-[#6B7684]"
+    return "bg-[#EBF3FE] text-[#1B64DA]"
   }
 
   return "bg-[#F2F4F6] text-[#6B7684]"
@@ -398,7 +398,7 @@ export default function SupportInquiryFab({
           previewMode,
           remoteId: response.id,
           replyEmail,
-          status: "PENDING" as ApiInquiryStatus,
+          status: "new" as ApiInquiryStatus,
           title: subject.trim(),
         },
         ...readAllLocalInquiries().filter((entry) => entry.remoteId !== response.id),
@@ -409,7 +409,7 @@ export default function SupportInquiryFab({
       if (accountEmail ?? replyEmail) {
         const nextSeenStatuses = {
           ...readSeenInquiryStatuses(accountEmail ?? replyEmail),
-          [`inquiry-${response.id}`]: "PENDING" as ApiInquiryStatus,
+          [`inquiry-${response.id}`]: "new" as ApiInquiryStatus,
         }
         setSeenInquiryStatuses(nextSeenStatuses)
         writeSeenInquiryStatuses(accountEmail ?? replyEmail, nextSeenStatuses)
