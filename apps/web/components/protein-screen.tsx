@@ -80,10 +80,6 @@ function hasMeaningfulDifference(left: number, right: number) {
   return Math.abs(left - right) >= 0.1
 }
 
-function createMealDeduplicationKey(date: string | undefined, protein: number, label: string) {
-  return `${date ?? ""}|${Math.round(protein * 10)}|${label.trim()}`
-}
-
 function formatProteinLogLabel(type: string, note: string | undefined, typeLabel: string | undefined) {
   const trimmedNote = note?.trim() ?? ""
 
@@ -101,6 +97,40 @@ function formatProteinLogLabel(type: string, note: string | undefined, typeLabel
 
 function formatSchoolMealLogLabel(mealType: ApiSchoolMealType) {
   return `${SCHOOL_MEAL_TYPE_LABELS[mealType]} 급식`
+}
+
+function parseSchoolMealTypeFromLabel(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase()
+  if (!normalized) {
+    return null
+  }
+
+  if (normalized === "breakfast" || normalized === "breakfast 급식" || normalized === "아침" || normalized === "아침 급식") {
+    return "breakfast" as const
+  }
+
+  if (normalized === "lunch" || normalized === "lunch 급식" || normalized === "점심" || normalized === "점심 급식") {
+    return "lunch" as const
+  }
+
+  if (normalized === "dinner" || normalized === "dinner 급식" || normalized === "저녁" || normalized === "저녁 급식") {
+    return "dinner" as const
+  }
+
+  return null
+}
+
+function normalizeMealDisplayLabel(label: string, mealType?: string) {
+  const normalizedMealType = parseSchoolMealType(mealType) ?? parseSchoolMealTypeFromLabel(label)
+  if (normalizedMealType) {
+    return formatSchoolMealLogLabel(normalizedMealType)
+  }
+
+  return label.trim()
+}
+
+function createMealDeduplicationKey(date: string | undefined, protein: number, label: string) {
+  return `${date ?? ""}|${Math.round(protein * 10)}|${normalizeMealDisplayLabel(label).toLowerCase()}`
 }
 
 function readLocalSchoolMealLogs() {
@@ -471,7 +501,7 @@ export default function ProteinScreen({
       id: `meal-${entry.id}`,
       rawId: entry.id,
       source: "meal" as const,
-      label: entry.name,
+      label: normalizeMealDisplayLabel(entry.name, entry.type),
       protein: parseDecimal(entry.protein),
       time: formatTimeLabel(entry.created_at, entry.date),
       createdAt: entry.created_at ?? `${entry.date}T00:00:00`,
