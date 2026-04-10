@@ -101,6 +101,26 @@ function parseDecimal(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function getMaximumSchoolMealProtein(menu: { selection_options: Record<string, string> }) {
+  return Object.values(menu.selection_options).reduce((max, optionValue) => Math.max(max, parseDecimal(optionValue)), 0)
+}
+
+function hasAvailableSchoolMealProtein(
+  schoolLunch:
+    | {
+        menus: Array<{
+          selection_options: Record<string, string>
+        }>
+      }
+    | undefined,
+) {
+  if (!schoolLunch || schoolLunch.menus.length === 0) {
+    return false
+  }
+
+  return schoolLunch.menus.some((menu) => getMaximumSchoolMealProtein(menu) > 0)
+}
+
 function hasMeaningfulDifference(left: number, right: number) {
   return Math.abs(left - right) >= 0.1
 }
@@ -430,6 +450,32 @@ export default function ProteinScreen({
 
     writePersistedSchoolMealType(requestedMealType)
   }, [requestedMealType])
+
+  useEffect(() => {
+    if (!schoolLunchQuery.data || schoolLunchQuery.isFetching) {
+      return
+    }
+
+    const currentMealType = parseSchoolMealType(schoolLunchQuery.data.meal_type)
+    if (!currentMealType || hasAvailableSchoolMealProtein(schoolLunchQuery.data)) {
+      return
+    }
+
+    const nextMealType = getNextSchoolMealType(currentMealType)
+    if (!nextMealType) {
+      return
+    }
+
+    setActiveMealType((previous) => {
+      const nextValue = getLaterMealType(previous, nextMealType)
+      if (!nextValue || nextValue === previous) {
+        return previous
+      }
+
+      writePersistedSchoolMealType(nextValue)
+      return nextValue
+    })
+  }, [schoolLunchQuery.data, schoolLunchQuery.isFetching])
 
   useEffect(() => {
     setLocalSchoolMealLogs(readLocalSchoolMealLogs())
@@ -774,8 +820,8 @@ export default function ProteinScreen({
             <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">{getReadableApiError(schoolLunchQuery.error)}</div>
           ) : isSchoolLunchTransitioning ? (
             <SchoolMealLoadingState mealType={requestedMealType} />
-          ) : menus.length === 0 ? (
-            <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">오늘 급식 정보가 없습니다.</div>
+          ) : !hasAvailableSchoolMealProtein(schoolLunch) ? (
+            <div className="px-4 py-5 text-[12px] leading-5 text-[#8B95A1]">선택 가능한 단백질 메뉴가 없습니다.</div>
           ) : (
             <div className="divide-y divide-[#E5E8EB]">
               {menus.map((menu) => {
