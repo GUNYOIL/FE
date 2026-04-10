@@ -45,6 +45,15 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/firebase-messaging-sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, max-age=0, must-revalidate",
+          },
+        ],
+      },
     ];
   },
 };

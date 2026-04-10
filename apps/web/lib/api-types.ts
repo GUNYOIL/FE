@@ -211,6 +211,13 @@ export type ApiInquiryCreateResponse = {
   id: number
 }
 
+export type ApiPushTokenDeviceType = "web"
+
+export type ApiPushTokenWrite = {
+  token: string
+  device_type?: ApiPushTokenDeviceType
+}
+
 export type ApiAnnouncement = {
   id: number
   title: string

@@ -10,6 +10,7 @@ import type {
   ApiMealOverview,
   ApiProteinLogCreate,
   ApiProteinOverview,
+  ApiPushTokenWrite,
   ApiRoutine,
   ApiSchoolLunchResponse,
   ApiSchoolMealSelectionSave,
@@ -113,6 +114,26 @@ export function logout(token: string, refreshToken: string | null) {
       refresh: refreshToken,
     },
   })
+}
+
+export function registerMyPushToken(token: string, body: ApiPushTokenWrite) {
+  return requestWithFallbacks(["/me/push-tokens/", "/me/fcm-tokens/"], (path) =>
+    apiRequest<unknown>(path, {
+      method: "POST",
+      token,
+      body,
+    }),
+  )
+}
+
+export function deleteMyPushToken(token: string, body: ApiPushTokenWrite) {
+  return requestWithFallbacks(["/me/push-tokens/", "/me/fcm-tokens/"], (path) =>
+    apiRequest<unknown>(path, {
+      method: "DELETE",
+      token,
+      body,
+    }),
+  )
 }
 
 export async function fetchFeaturedAnnouncement() {

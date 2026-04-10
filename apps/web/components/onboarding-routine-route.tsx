@@ -7,6 +7,7 @@ import { createEmptyRoutineMap } from "@/lib/app-config"
 import { apiUserToOnboardingProfileDraft, isApiProfileComplete } from "@/lib/api-adapters"
 import { loadRemoteOnboardingState, saveRemoteOnboarding } from "@/lib/api-sync"
 import { AUTH_ERROR_EVENT, ApiError, isAuthErrorStatus } from "@/lib/api-client"
+import { removePushTokenRegistration } from "@/lib/push-notifications"
 import {
   clearPersistedSession,
   createEmptyOnboardingProfileDraft,
@@ -76,6 +77,7 @@ export default function OnboardingRoutineRoute() {
         }
 
         if (error instanceof ApiError && isAuthErrorStatus(error.status)) {
+          void removePushTokenRegistration(persisted.account?.accessToken ?? null)
           clearPersistedSession()
           router.replace("/login")
         }
@@ -96,6 +98,8 @@ export default function OnboardingRoutineRoute() {
         return
       }
 
+      const persisted = readPersistedState()
+      void removePushTokenRegistration(persisted.account?.accessToken ?? null)
       clearPersistedSession()
       router.replace("/login")
     }
@@ -107,6 +111,8 @@ export default function OnboardingRoutineRoute() {
         return
       }
 
+      const persisted = readPersistedState()
+      void removePushTokenRegistration(persisted.account?.accessToken ?? null)
       clearPersistedSession()
       router.replace("/login")
     }

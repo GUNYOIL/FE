@@ -7,6 +7,7 @@ import { AppShellSkeleton } from "@/components/loading-skeletons"
 import { createInitialProteinState, type OnboardingData, type ProteinState } from "@/lib/app-config"
 import { loadRemoteOnboardingState, saveRemoteRoutines } from "@/lib/api-sync"
 import { AUTH_ERROR_EVENT, ApiError, isAuthErrorStatus } from "@/lib/api-client"
+import { removePushTokenRegistration } from "@/lib/push-notifications"
 import { clearPersistedSession, hasPersistedSessionMarker, isProfileDraftComplete, readPersistedState, type Account, writePersistedState } from "@/lib/session"
 
 export default function HomeRoute() {
@@ -71,6 +72,7 @@ export default function HomeRoute() {
         }
 
         if (error instanceof ApiError && isAuthErrorStatus(error.status)) {
+          void removePushTokenRegistration(persistedAccount.accessToken)
           clearPersistedSession()
           router.replace("/login")
           return
@@ -81,6 +83,7 @@ export default function HomeRoute() {
           return
         }
 
+        void removePushTokenRegistration(persistedAccount.accessToken)
         clearPersistedSession()
         router.replace("/login")
       })
@@ -100,6 +103,7 @@ export default function HomeRoute() {
         return
       }
 
+      void removePushTokenRegistration(account.accessToken)
       clearPersistedSession()
       setAccount(null)
       setOnboardingData(null)
@@ -113,6 +117,7 @@ export default function HomeRoute() {
         return
       }
 
+      void removePushTokenRegistration(account.accessToken)
       clearPersistedSession()
       setAccount(null)
       setOnboardingData(null)

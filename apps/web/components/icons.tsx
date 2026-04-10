@@ -139,3 +139,17 @@ export function MegaphoneIcon(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function BellIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path
+        d="M12 5.25C9.65279 5.25 7.75 7.15279 7.75 9.5V11.625C7.75 12.2436 7.529 12.8418 7.12624 13.3113L6 14.625H18L16.8738 13.3113C16.471 12.8418 16.25 12.2436 16.25 11.625V9.5C16.25 7.15279 14.3472 5.25 12 5.25Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path d="M10 17.25C10.35 18.1 11.1 18.75 12 18.75C12.9 18.75 13.65 18.1 14 17.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </BaseIcon>
+  );
+}
