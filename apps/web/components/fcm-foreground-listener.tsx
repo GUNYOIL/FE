@@ -11,6 +11,24 @@ type ForegroundNotice = {
   body: string
 }
 
+function showBrowserNotification(payload: MessagePayload, title: string, body: string) {
+  if (typeof window === "undefined" || Notification.permission !== "granted") {
+    return
+  }
+
+  const link = payload.fcmOptions?.link || payload.data?.link || "/"
+  const notification = new Notification(title, {
+    body,
+    icon: "/icon-192.svg",
+    badge: "/icon-192.svg",
+  })
+
+  notification.onclick = () => {
+    window.focus()
+    window.location.assign(link)
+    notification.close()
+  }
+}
 export default function FcmForegroundListener() {
   const [notice, setNotice] = useState<ForegroundNotice | null>(null)
 
@@ -25,6 +43,7 @@ export default function FcmForegroundListener() {
       const title = payload.notification?.title ?? "근요일 알림"
       const body = payload.notification?.body ?? ""
 
+      showBrowserNotification(payload, title, body)
       setNotice({
         id: `${Date.now()}`,
         title,
