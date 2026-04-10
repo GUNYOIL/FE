@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
+import FcmForegroundListener from "@/components/fcm-foreground-listener";
 import { PwaRegister } from "@/components/pwa-register";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_METADATA_BASE, SITE_NAME, SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
@@ -120,6 +121,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       </head>
       <body>
         <Providers>{children}</Providers>
+        <FcmForegroundListener />
         <PwaRegister />
       </body>
     </html>

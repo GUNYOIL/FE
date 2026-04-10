@@ -17,6 +17,7 @@ import {
 } from "@/lib/app-config"
 import type { Account } from "@/lib/session"
 import BrandMark from "./brand-mark"
+import FcmEnableButton from "./fcm-enable-button"
 import GuestAuthSheet from "./guest-auth-sheet"
 import GuestProteinScreen from "./guest-protein-screen"
 import GrassScreen from "./grass-screen"
@@ -282,6 +283,7 @@ export default function AppShell({
             <span className="rounded-full bg-[#F2F4F6] px-3 py-1.5 text-[12px] font-semibold text-[#4E5968]">
               {goalOption.label}
             </span>
+            {!isGuestPreview && token ? <FcmEnableButton accessToken={token} variant="header" /> : null}
           </div>
         </div>
         <p className="pb-3 text-[12px] leading-5 text-[#8B95A1]">{activeMeta.helper}</p>
