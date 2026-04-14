@@ -101,10 +101,8 @@ export async function syncPushTokenRegistration(accessToken: string) {
     return { status: "registered" as const, token }
   }
 
-  if (storedToken === token && storedSyncMode === "local") {
-    writePushNotificationsEnabled(true)
-    return { status: "local_only" as const, token }
-  }
+  // Retry same-token local-only states so the client can recover once the server
+  // registration route becomes available again.
 
   try {
     await registerMyPushToken(accessToken, {

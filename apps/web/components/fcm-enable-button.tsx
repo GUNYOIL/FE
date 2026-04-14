@@ -15,7 +15,7 @@ function getStatusMessage(status: PushStatus, errorMessage: string) {
   }
 
   if (status === "local_only") {
-    return "브라우저 알림만 연결됨"
+    return "알림 서버 연결 확인 필요"
   }
 
   if (status === "denied") {
@@ -150,7 +150,8 @@ export default function FcmEnableButton({
     return null
   }
 
-  const isEnabled = status === "enabled" || status === "local_only"
+  const isEnabled = status === "enabled"
+  const isLocalOnly = status === "local_only"
   const message = getStatusMessage(status, errorMessage)
 
   if (variant === "header") {
@@ -160,6 +161,8 @@ export default function FcmEnableButton({
         className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-semibold transition-colors ${
           isEnabled
             ? "border-[#D5F1D8] bg-[#EAF7EC] text-[#2CB52C]"
+            : isLocalOnly
+              ? "border-[#F4DFC2] bg-[#FFF7ED] text-[#B65600]"
             : status === "loading"
               ? "border-[#E5E8EB] bg-[#F2F4F6] text-[#8B95A1]"
               : "border-[#E5E8EB] bg-white text-[#4E5968]"
@@ -172,7 +175,7 @@ export default function FcmEnableButton({
         type="button"
       >
         <BellIcon size={14} />
-        <span>{status === "loading" ? "처리 중" : "알림"}</span>
+        <span>{status === "loading" ? "처리 중" : isLocalOnly ? "확인 필요" : "알림"}</span>
       </button>
     )
   }
@@ -197,6 +200,8 @@ export default function FcmEnableButton({
           className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold ${
             isEnabled
               ? "bg-[#EAF7EC] text-[#2CB52C]"
+              : isLocalOnly
+                ? "bg-[#FFF1E6] text-[#B65600]"
               : status === "loading"
                 ? "bg-[#EEF2F6] text-[#8B95A1]"
                 : "bg-[#191F28] text-white"
@@ -209,7 +214,7 @@ export default function FcmEnableButton({
         >
           {status === "loading"
             ? "처리 중..."
-            : isEnabled
+            : isEnabled || isLocalOnly
               ? "알림 끄기"
               : "알림 켜기"}
         </button>
