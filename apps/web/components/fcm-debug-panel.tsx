@@ -132,7 +132,7 @@ export default function FcmDebugPanel() {
       </div>
 
       {isOpen ? (
-        <div className="mt-2 overflow-hidden rounded-[8px] border border-[#D9E0E7] bg-white shadow-[0_28px_56px_-30px_rgba(15,23,42,0.4)]">
+        <div className="pointer-events-auto mt-2 overflow-hidden rounded-[8px] border border-[#D9E0E7] bg-white shadow-[0_28px_56px_-30px_rgba(15,23,42,0.4)]">
           <div className="flex items-center justify-between gap-2 border-b border-[#EEF1F4] px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-[12px] font-semibold text-[#191F28]">FCM 디버그 로그</p>
