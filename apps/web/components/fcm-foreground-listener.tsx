@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { MessagePayload } from "firebase/messaging"
+import { recordFcmDebugEntry } from "@/lib/fcm-debug"
 import { listenForegroundMessages } from "@/lib/fcm"
 import { isFirebaseMessagingConfigured } from "@/lib/firebase"
 
@@ -24,9 +25,17 @@ function createTimestampDetails() {
 }
 
 function logFcm(event: string, details: Record<string, unknown> = {}) {
-  console.info(FCM_LOG_PREFIX, event, {
+  const payload = {
     ...createTimestampDetails(),
     ...details,
+  }
+
+  console.info(FCM_LOG_PREFIX, event, payload)
+  recordFcmDebugEntry({
+    prefix: FCM_LOG_PREFIX,
+    event,
+    details: payload,
+    source: "page",
   })
 }
 

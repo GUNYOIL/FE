@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import FcmDebugPanel from "@/components/fcm-debug-panel";
 import { Providers } from "@/components/providers";
 import FcmForegroundListener from "@/components/fcm-foreground-listener";
 import { PwaRegister } from "@/components/pwa-register";
+import { isFcmDebugEnabledOnServer } from "@/lib/fcm-debug-config";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_METADATA_BASE, SITE_NAME, SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site-config";
 import "./globals.css";
 
@@ -107,6 +109,8 @@ type RootLayoutProps = Readonly<{
 }>;
 
 export default function RootLayout({ children }: RootLayoutProps) {
+  const isFcmDebugEnabled = isFcmDebugEnabledOnServer();
+
   return (
     <html lang="ko">
       <head>
@@ -116,6 +120,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
           }}
           type="application/ld+json"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__GUNYOIL_FCM_DEBUG__ = ${JSON.stringify(isFcmDebugEnabled)};`,
+          }}
+        />
         <link crossOrigin="" href="https://cdn.jsdelivr.net" rel="preconnect" />
         <link href="https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/subsets/Pretendard-dynamic-subset.css" rel="stylesheet" />
       </head>
@@ -123,6 +132,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <Providers>{children}</Providers>
         <FcmForegroundListener />
         <PwaRegister />
+        {isFcmDebugEnabled ? <FcmDebugPanel /> : null}
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 "use client"
 
 import { deleteToken, getMessaging, getToken, isSupported, MessagePayload, onMessage } from "firebase/messaging"
+import { recordFcmDebugEntry } from "@/lib/fcm-debug"
 import { getFirebaseApp, isFirebaseMessagingConfigured } from "@/lib/firebase"
 
 const FCM_SERVICE_WORKER_PATH = "/firebase-messaging-sw.js"
@@ -20,9 +21,17 @@ function createTimestampDetails() {
 }
 
 function logFcm(event: string, details: FcmLogDetails = {}) {
-  console.info(FCM_LOG_PREFIX, event, {
+  const payload = {
     ...createTimestampDetails(),
     ...details,
+  }
+
+  console.info(FCM_LOG_PREFIX, event, payload)
+  recordFcmDebugEntry({
+    prefix: FCM_LOG_PREFIX,
+    event,
+    details: payload,
+    source: "page",
   })
 }
 

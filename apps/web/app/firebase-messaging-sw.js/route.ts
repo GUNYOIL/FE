@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+import { isFcmDebugEnabledOnServer } from "@/lib/fcm-debug-config"
 
 const JAVASCRIPT_CONTENT_TYPE = "application/javascript; charset=utf-8"
+const FCM_DEBUG_MESSAGE_TYPE = "gunyoil:fcm-debug-log"
 
 function readFirebaseServiceWorkerConfig() {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
@@ -24,34 +26,67 @@ function readFirebaseServiceWorkerConfig() {
   }
 }
 
+function buildServiceWorkerDebugSource() {
+  return `
+const FCM_DEBUG_MESSAGE_TYPE = ${JSON.stringify(FCM_DEBUG_MESSAGE_TYPE)};
+const FCM_DEBUG_ENABLED = ${JSON.stringify(isFcmDebugEnabledOnServer())};
+
+function broadcastFcmDebug(entry) {
+  if (!FCM_DEBUG_ENABLED) {
+    return;
+  }
+
+  self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+    for (const client of clientList) {
+      client.postMessage({
+        type: FCM_DEBUG_MESSAGE_TYPE,
+        entry,
+      });
+    }
+  }).catch(() => undefined);
+}
+
+function logFcm(event, details = {}) {
+  const payload = {
+    at: new Date().toISOString(),
+    epoch_ms: Date.now(),
+    perf_ms: Number(performance.now().toFixed(1)),
+    ...details,
+  };
+
+  console.info("[FCM][SW]", event, payload);
+  broadcastFcmDebug({
+    prefix: "[FCM][SW]",
+    event,
+    details: payload,
+    source: "service_worker",
+  });
+}
+`
+}
+
 function buildServiceWorkerSource() {
   const config = readFirebaseServiceWorkerConfig()
+  const debugSource = buildServiceWorkerDebugSource()
 
   if (!config) {
     return `
+${debugSource}
 self.addEventListener("install", () => {
-  console.info("[FCM][SW]", "lifecycle.install", { at: new Date().toISOString(), epoch_ms: Date.now(), perf_ms: Number(performance.now().toFixed(1)) });
+  logFcm("lifecycle.install");
   self.skipWaiting();
 });
 self.addEventListener("activate", (event) => {
-  console.info("[FCM][SW]", "lifecycle.activate", { at: new Date().toISOString(), epoch_ms: Date.now(), perf_ms: Number(performance.now().toFixed(1)) });
+  logFcm("lifecycle.activate");
   event.waitUntil(self.clients.claim());
 });
 `
   }
 
   return `
+${debugSource}
 importScripts("https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js");
-
-function logFcm(event, details = {}) {
-  console.info("[FCM][SW]", event, {
-    at: new Date().toISOString(),
-    epoch_ms: Date.now(),
-    perf_ms: Number(performance.now().toFixed(1)),
-    ...details,
-  });
-}
 
 firebase.initializeApp(${JSON.stringify(config)});
 logFcm("firebase.initialized", {

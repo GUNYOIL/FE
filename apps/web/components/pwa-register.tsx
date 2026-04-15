@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { recordFcmDebugEntry } from "@/lib/fcm-debug";
 
 const PWA_LOG_PREFIX = "[FCM]";
 
@@ -15,9 +16,17 @@ function createTimestampDetails() {
 }
 
 function logPwa(event: string, details: Record<string, unknown> = {}) {
-  console.info(PWA_LOG_PREFIX, event, {
+  const payload = {
     ...createTimestampDetails(),
     ...details,
+  };
+
+  console.info(PWA_LOG_PREFIX, event, payload);
+  recordFcmDebugEntry({
+    prefix: PWA_LOG_PREFIX,
+    event,
+    details: payload,
+    source: "page",
   });
 }
 
