@@ -11,6 +11,8 @@ import {
   type FcmDebugEntry,
 } from "@/lib/fcm-debug"
 
+type CopyStatus = "idle" | "success" | "error"
+
 function formatLogTimestamp(entry: FcmDebugEntry) {
   const rawAt = typeof entry.details.at === "string" ? entry.details.at : entry.captured_at
   const date = new Date(rawAt)
@@ -29,10 +31,38 @@ function formatLogTimestamp(entry: FcmDebugEntry) {
   })
 }
 
+async function copyToClipboard(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  if (typeof document === "undefined") {
+    throw new Error("clipboard_unavailable")
+  }
+
+  const textarea = document.createElement("textarea")
+  textarea.value = text
+  textarea.setAttribute("readonly", "")
+  textarea.style.position = "fixed"
+  textarea.style.opacity = "0"
+  textarea.style.pointerEvents = "none"
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+
+  const copied = document.execCommand("copy")
+  document.body.removeChild(textarea)
+
+  if (!copied) {
+    throw new Error("clipboard_copy_failed")
+  }
+}
+
 export default function FcmDebugPanel() {
   const [entries, setEntries] = useState<FcmDebugEntry[]>([])
   const [isOpen, setIsOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle")
 
   useEffect(() => {
     return subscribeFcmDebugEntries(setEntries)
@@ -59,18 +89,18 @@ export default function FcmDebugPanel() {
   }, [])
 
   useEffect(() => {
-    if (!copied) {
+    if (copyStatus === "idle") {
       return
     }
 
     const timeoutId = window.setTimeout(() => {
-      setCopied(false)
-    }, 1600)
+      setCopyStatus("idle")
+    }, 1800)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [copied])
+  }, [copyStatus])
 
   const visibleEntries = useMemo(() => entries.slice(0, 40), [entries])
 
@@ -79,8 +109,12 @@ export default function FcmDebugPanel() {
   }
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(formatFcmDebugEntries(entries))
-    setCopied(true)
+    try {
+      await copyToClipboard(formatFcmDebugEntries(entries))
+      setCopyStatus("success")
+    } catch {
+      setCopyStatus("error")
+    }
   }
 
   return (
@@ -121,7 +155,7 @@ export default function FcmDebugPanel() {
                 }}
                 type="button"
               >
-                {copied ? "복사됨" : "복사"}
+                {copyStatus === "success" ? "복사됨" : copyStatus === "error" ? "다시 시도" : "복사"}
               </button>
             </div>
           </div>
@@ -146,6 +180,19 @@ export default function FcmDebugPanel() {
             ) : (
               <p className="text-[11px] text-[#6B7684]">아직 저장된 로그가 없습니다.</p>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {copyStatus !== "idle" ? (
+        <div className="pointer-events-none mt-2 flex justify-end">
+          <div
+            className={`rounded-[8px] px-3 py-2 text-[11px] font-semibold shadow-[0_16px_32px_-24px_rgba(15,23,42,0.55)] ${
+              copyStatus === "success" ? "bg-[#191F28] text-white" : "bg-[#FFF1E6] text-[#B65600]"
+            }`}
+            role="status"
+          >
+            {copyStatus === "success" ? "클립보드에 복사되었습니다." : "복사에 실패했습니다. 다시 시도해 주세요."}
           </div>
         </div>
       ) : null}
