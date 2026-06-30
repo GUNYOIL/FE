@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchInquiries, updateInquiryStatus } from "@/lib/api";
-import { ApiError, getReadableApiError } from "@/lib/api-client";
+import { ApiError, getReadableApiError, isAuthErrorStatus } from "@/lib/api-client";
 import type { AdminInquiry, InquiryStatus } from "@/lib/api-types";
 import { readStoredSession, writeStoredSession } from "@/lib/session";
 import AdminBrandMark from "@/components/admin-brand-mark";
 import { ArrowLeftIcon, MessageCircleIcon } from "@/components/admin-icons";
 
 function isAuthError(error: unknown) {
-  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+  return error instanceof ApiError && isAuthErrorStatus(error.status);
 }
 
 function formatDateTime(value: string) {

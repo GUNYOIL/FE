@@ -13,7 +13,7 @@ import {
   logoutAdmin,
   updateAnnouncementSelection,
 } from "@/lib/api";
-import { ApiError, getReadableApiError } from "@/lib/api-client";
+import { ApiError, getReadableApiError, isAuthErrorStatus } from "@/lib/api-client";
 import type {
   AdminExercise,
   AdminExerciseCategory,
@@ -46,7 +46,7 @@ const EXERCISE_CATEGORIES: Array<{ value: AdminExerciseCategory; label: string }
 ];
 
 function isAuthError(error: unknown) {
-  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+  return error instanceof ApiError && isAuthErrorStatus(error.status);
 }
 
 function formatDateTime(value: string) {
