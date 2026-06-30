@@ -10,6 +10,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@gunyoil/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       next:
         specifier: ^15.0.0
         version: 15.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -44,6 +47,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@gunyoil/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@tanstack/react-query':
         specifier: ^5.66.0
         version: 5.95.2(react@19.2.4)
@@ -78,6 +84,19 @@ importers:
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.19
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/shared:
+    dependencies:
+      next:
+        specifier: ^15.0.0
+        version: 15.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.19.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
